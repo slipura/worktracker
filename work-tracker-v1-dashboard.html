@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WorkTracker — 6 дней · 10 часов</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Fira+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --color-primary:#D97706;
+    --color-on-primary:#FFFFFF;
+    --color-secondary:#F59E0B;
+    --color-accent:#6366F1;
+    --color-background:#0F172A;
+    --color-surface:#161f36;
+    --color-surface-2:#1e2a44;
+    --color-foreground:#FFFFFF;
+    --color-muted:#94a3b8;
+    --color-border:rgba(255,255,255,0.08);
+    --color-destructive:#DC2626;
+    --color-success:#22c55e;
+    --color-ring:#D97706;
+    --radius:16px;
+    --radius-sm:10px;
+    --sp-1:8px;--sp-2:12px;--sp-3:16px;--sp-4:24px;--sp-5:32px;
+    --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.35);
+    --shadow-in:inset 0 1px 0 rgba(255,255,255,.04);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    font-family:'Fira Sans',system-ui,sans-serif;
+    background:
+      radial-gradient(1200px 600px at 80% -10%,rgba(99,102,241,.14),transparent 60%),
+      radial-gradient(900px 500px at -10% 10%,rgba(217,119,6,.12),transparent 55%),
+      var(--color-background);
+    color:var(--color-foreground);
+    min-height:100vh;
+    line-height:1.5;
+    padding:var(--sp-4);
+  }
+  .wrap{max-width:1080px;margin:0 auto}
+  .mono{font-family:'Fira Code',monospace;font-variant-numeric:tabular-nums}
+
+  /* Header */
+  header{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-3);flex-wrap:wrap;margin-bottom:var(--sp-4)}
+  .brand{display:flex;align-items:center;gap:var(--sp-2)}
+  .logo{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;
+    background:linear-gradient(135deg,var(--color-primary),var(--color-secondary));box-shadow:var(--shadow)}
+  .brand h1{font-size:19px;font-weight:600;letter-spacing:-.2px}
+  .brand p{font-size:12.5px;color:var(--color-muted)}
+  .goal-badge{display:flex;align-items:center;gap:var(--sp-1);font-size:13px;color:var(--color-muted);
+    background:var(--color-surface);border:1px solid var(--color-border);padding:8px 14px;border-radius:999px}
+  .goal-badge b{color:var(--color-foreground);font-weight:600}
+
+  /* Grid */
+  .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:var(--sp-3)}
+  .card{background:linear-gradient(180deg,var(--color-surface),var(--color-surface));
+    border:1px solid var(--color-border);border-radius:var(--radius);padding:var(--sp-4);
+    box-shadow:var(--shadow),var(--shadow-in)}
+  .col-4{grid-column:span 4}
+  .col-8{grid-column:span 8}
+  .col-6{grid-column:span 6}
+  .col-12{grid-column:span 12}
+  .card-title{font-size:12px;text-transform:uppercase;letter-spacing:.09em;color:var(--color-muted);margin-bottom:var(--sp-3);font-weight:600}
+
+  /* Timer card */
+  .timer-card{display:flex;flex-direction:column;align-items:center;text-align:center}
+  .ring-wrap{position:relative;width:220px;height:220px;margin:var(--sp-2) 0 var(--sp-3)}
+  .ring-wrap svg{transform:rotate(-90deg)}
+  .ring-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+  .clock{font-size:40px;font-weight:600;letter-spacing:-1px}
+  .clock small{font-size:15px;color:var(--color-muted);font-weight:500}
+  .ring-label{font-size:12.5px;color:var(--color-muted);margin-top:4px}
+  .status-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--color-muted);margin-right:6px;vertical-align:middle}
+  .status-dot.live{background:var(--color-success);box-shadow:0 0 0 0 rgba(34,197,94,.5);animation:pulse 1.8s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(34,197,94,.45)}70%{box-shadow:0 0 0 10px rgba(34,197,94,0)}100%{box-shadow:0 0 0 0 rgba(34,197,94,0)}}
+
+  .controls{display:flex;gap:var(--sp-2);width:100%;margin-top:var(--sp-1)}
+  button{font-family:inherit;cursor:pointer;border:1px solid var(--color-border);border-radius:var(--radius-sm);
+    font-size:14.5px;font-weight:600;padding:12px 16px;transition:transform .15s ease,background .2s ease,border-color .2s ease,opacity .2s ease;color:var(--color-foreground);background:var(--color-surface-2)}
+  button:hover{transform:translateY(-1px)}
+  button:active{transform:translateY(0)}
+  button:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(217,119,6,.5)}
+  .btn-primary{flex:1;background:linear-gradient(135deg,var(--color-primary),var(--color-secondary));border-color:transparent;color:#fff}
+  .btn-ghost{flex:1}
+  button:disabled{opacity:.4;cursor:not-allowed;transform:none}
+
+  /* Stats */
+  .stat-row{display:flex;justify-content:space-between;align-items:baseline;padding:12px 0;border-bottom:1px solid var(--color-border)}
+  .stat-row:last-child{border-bottom:none}
+  .stat-row .k{font-size:13.5px;color:var(--color-muted)}
+  .stat-row .v{font-size:18px;font-weight:600}
+  .stat-row .v span{font-size:13px;color:var(--color-muted);font-weight:500}
+
+  /* Progress bar */
+  .bar{height:10px;border-radius:999px;background:var(--color-surface-2);overflow:hidden;margin-top:6px}
+  .bar>i{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,var(--color-primary),var(--color-secondary));width:0;transition:width .5s cubic-bezier(.22,1,.36,1)}
+  .bar.accent>i{background:linear-gradient(90deg,var(--color-accent),#818cf8)}
+  .bar.done>i{background:linear-gradient(90deg,var(--color-success),#4ade80)}
+
+  /* Week strip */
+  .week{display:grid;grid-template-columns:repeat(7,1fr);gap:10px}
+  .day{border:1px solid var(--color-border);border-radius:12px;padding:12px 8px;text-align:center;background:var(--color-surface-2);position:relative;overflow:hidden}
+  .day .dname{font-size:11px;color:var(--color-muted);text-transform:uppercase;letter-spacing:.05em}
+  .day .dhours{font-size:16px;font-weight:600;margin-top:6px}
+  .day .dmini{height:5px;border-radius:999px;background:rgba(255,255,255,.07);margin-top:8px;overflow:hidden}
+  .day .dmini>i{display:block;height:100%;background:linear-gradient(90deg,var(--color-primary),var(--color-secondary));width:0;transition:width .5s ease}
+  .day.today{border-color:var(--color-primary);box-shadow:0 0 0 1px var(--color-primary) inset}
+  .day.hit .dmini>i{background:linear-gradient(90deg,var(--color-success),#4ade80)}
+  .day.hit::after{content:"";position:absolute;top:6px;right:6px;width:7px;height:7px;border-radius:50%;background:var(--color-success)}
+  .day.rest{opacity:.55}
+
+  /* Log */
+  .log{display:flex;flex-direction:column;gap:8px;max-height:280px;overflow:auto}
+  .log-item{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--color-border);border-radius:10px;background:var(--color-surface-2);font-size:13.5px}
+  .log-item .li-time{color:var(--color-muted)}
+  .log-item .li-dur{font-weight:600}
+  .log-empty{color:var(--color-muted);font-size:13.5px;text-align:center;padding:24px 0}
+  .del{background:none;border:none;color:var(--color-muted);padding:4px 6px;font-size:16px;line-height:1;border-radius:6px}
+  .del:hover{color:var(--color-destructive);transform:none}
+
+  .add-manual{display:flex;gap:8px;margin-top:var(--sp-3)}
+  .add-manual input{flex:1;background:var(--color-surface-2);border:1px solid var(--color-border);border-radius:10px;color:var(--color-foreground);padding:11px 12px;font-family:'Fira Code',monospace;font-size:14px}
+  .add-manual input:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(99,102,241,.4);border-color:var(--color-accent)}
+  .add-manual label{font-size:11px;color:var(--color-muted);position:absolute;margin-top:-8px;margin-left:10px;background:var(--color-surface);padding:0 4px}
+  .field{position:relative;flex:1}
+
+  footer{margin-top:var(--sp-4);text-align:center;color:var(--color-muted);font-size:12px}
+  footer button{background:none;border:none;color:var(--color-muted);text-decoration:underline;font-size:12px;padding:0}
+  footer button:hover{color:var(--color-destructive);transform:none}
+
+  @media(max-width:860px){
+    .col-4,.col-8,.col-6{grid-column:span 12}
+  }
+  @media(max-width:520px){
+    body{padding:var(--sp-3)}
+    .week{grid-template-columns:repeat(7,1fr);gap:5px}
+    .day{padding:9px 3px}
+    .day .dhours{font-size:13px}
+    .clock{font-size:34px}
+  }
+  @media(prefers-reduced-motion:reduce){
+    *{transition:none!important;animation:none!important}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <div class="logo" aria-hidden="true">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5"/><path d="M9 2h6"/></svg>
+      </div>
+      <div>
+        <h1>WorkTracker</h1>
+        <p>Дисциплина в цифрах</p>
+      </div>
+    </div>
+    <div class="goal-badge">
+      Цель: <b>6 дней</b> · <b>10 ч/день</b> · <b>60 ч/нед</b>
+    </div>
+  </header>
+
+  <div class="grid">
+    <!-- Timer -->
+    <section class="card col-4 timer-card" aria-label="Таймер дня">
+      <div class="card-title" style="align-self:flex-start">Сегодня</div>
+      <div class="ring-wrap">
+        <svg width="220" height="220" viewBox="0 0 220 220">
+          <circle cx="110" cy="110" r="96" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="16"/>
+          <circle id="ring" cx="110" cy="110" r="96" fill="none" stroke="url(#g)" stroke-width="16" stroke-linecap="round" stroke-dasharray="603" stroke-dashoffset="603"/>
+          <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#D97706"/><stop offset="1" stop-color="#F59E0B"/>
+          </linearGradient></defs>
+        </svg>
+        <div class="ring-center">
+          <div class="clock mono" id="clock">0<small>ч</small> 00<small>м</small></div>
+          <div class="ring-label"><span class="status-dot" id="dot"></span><span id="statusText">не запущено</span></div>
+        </div>
+      </div>
+      <div class="controls">
+        <button class="btn-primary" id="toggleBtn">Начать</button>
+        <button class="btn-ghost" id="stopBtn" disabled>Завершить сессию</button>
+      </div>
+    </section>
+
+    <!-- Day + Week stats -->
+    <section class="card col-8" aria-label="Прогресс">
+      <div class="card-title">Прогресс</div>
+
+      <div style="margin-bottom:var(--sp-4)">
+        <div class="stat-row" style="border-bottom:none;padding-bottom:4px">
+          <span class="k">Сегодня</span>
+          <span class="v mono" id="dayHours">0.0<span> / 10 ч</span></span>
+        </div>
+        <div class="bar" id="dayBarWrap"><i id="dayBar"></i></div>
+      </div>
+
+      <div style="margin-bottom:var(--sp-4)">
+        <div class="stat-row" style="border-bottom:none;padding-bottom:4px">
+          <span class="k">Неделя (часы)</span>
+          <span class="v mono" id="weekHours">0.0<span> / 60 ч</span></span>
+        </div>
+        <div class="bar accent" id="weekBarWrap"><i id="weekBar"></i></div>
+      </div>
+
+      <div>
+        <div class="stat-row" style="border-bottom:none;padding-bottom:4px">
+          <span class="k">Отработанные дни (≥10 ч)</span>
+          <span class="v mono" id="daysHit">0<span> / 6 дней</span></span>
+        </div>
+        <div class="bar done" id="daysBarWrap"><i id="daysBar"></i></div>
+      </div>
+
+      <div class="week" id="week" style="margin-top:var(--sp-4)"></div>
+    </section>
+
+    <!-- Log -->
+    <section class="card col-6" aria-label="Сессии сегодня">
+      <div class="card-title">Сессии сегодня</div>
+      <div class="log" id="log"><div class="log-empty">Пока нет сессий. Нажми «Начать».</div></div>
+      <div class="add-manual">
+        <div class="field">
+          <input id="manualInput" class="mono" type="text" inputmode="decimal" placeholder="напр. 2.5" aria-label="Часы вручную">
+        </div>
+        <button id="addBtn" style="flex:0 0 auto">+ Добавить часы</button>
+      </div>
+    </section>
+
+    <!-- Insight -->
+    <section class="card col-6" aria-label="Сводка">
+      <div class="card-title">Сводка недели</div>
+      <div class="stat-row"><span class="k">Осталось до цели недели</span><span class="v mono" id="remain">60.0<span> ч</span></span></div>
+      <div class="stat-row"><span class="k">Нужно в среднем / оставшийся день</span><span class="v mono" id="pace">10.0<span> ч</span></span></div>
+      <div class="stat-row"><span class="k">Текущая серия дней подряд</span><span class="v mono" id="streak">0<span> дн.</span></span></div>
+      <div class="stat-row"><span class="k">Статус</span><span class="v" id="verdict" style="font-size:15px">—</span></div>
+    </section>
+  </div>
+
+  <footer>
+    <p>Данные хранятся локально в браузере · <button id="resetWeek">сбросить неделю</button></p>
+  </footer>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var GOAL_DAY=10, GOAL_DAYS=6, GOAL_WEEK=60;
+  var STORE="worktracker.v1";
+  var RING_LEN=603;
+
+  var state=load();
+  var running=state.running||null; // {start: ms}
+
+  function load(){
+    try{
+      var raw=localStorage.getItem(STORE);
+      if(raw) return JSON.parse(raw);
+    }catch(e){}
+    return {weekStart:mondayOf(new Date()).toISOString(), sessions:[], running:null};
+  }
+  function save(){
+    state.running=running;
+    try{localStorage.setItem(STORE,JSON.stringify(state));}catch(e){}
+  }
+  function mondayOf(d){
+    d=new Date(d); var day=(d.getDay()+6)%7; // 0=Mon
+    d.setHours(0,0,0,0); d.setDate(d.getDate()-day); return d;
+  }
+  function sameWeek(){
+    var cur=mondayOf(new Date()).toISOString();
+    if(state.weekStart!==cur){
+      // roll to new week
+      state.weekStart=cur; state.sessions=[]; running=null; save();
+    }
+  }
+  function dayKey(ms){ var d=new Date(ms); d.setHours(0,0,0,0); return d.getTime(); }
+  function fmtHM(hours){
+    var totMin=Math.round(hours*60);
+    var h=Math.floor(totMin/60), m=totMin%60;
+    return h+'<small>ч</small> '+(m<10?'0'+m:m)+'<small>м</small>';
+  }
+  function fmtClock(ms){
+    var s=Math.floor(ms/1000), h=Math.floor(s/3600), m=Math.floor((s%3600)/60);
+    return h+'<small>ч</small> '+(m<10?'0'+m:m)+'<small>м</small>';
+  }
+
+  // aggregation
+  function hoursByDay(){
+    var map={};
+    var wk=mondayOf(new Date());
+    for(var i=0;i<7;i++){ map[wk.getTime()+i*864e5]=0; }
+    state.sessions.forEach(function(s){
+      var k=dayKey(s.start);
+      if(map[k]!==undefined) map[k]+=s.hours;
+    });
+    return map;
+  }
+
+  var els={
+    clock:document.getElementById('clock'),
+    ring:document.getElementById('ring'),
+    dot:document.getElementById('dot'),
+    statusText:document.getElementById('statusText'),
+    toggle:document.getElementById('toggleBtn'),
+    stop:document.getElementById('stopBtn'),
+    dayHours:document.getElementById('dayHours'),
+    dayBar:document.getElementById('dayBar'),
+    weekHours:document.getElementById('weekHours'),
+    weekBar:document.getElementById('weekBar'),
+    daysHit:document.getElementById('daysHit'),
+    daysBar:document.getElementById('daysBar'),
+    week:document.getElementById('week'),
+    log:document.getElementById('log'),
+    manual:document.getElementById('manualInput'),
+    add:document.getElementById('addBtn'),
+    remain:document.getElementById('remain'),
+    pace:document.getElementById('pace'),
+    streak:document.getElementById('streak'),
+    verdict:document.getElementById('verdict'),
+    reset:document.getElementById('resetWeek')
+  };
+
+  var DNAMES=['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
+
+  function currentSessionHours(){
+    return running ? (Date.now()-running.start)/3.6e6 : 0;
+  }
+
+  function render(){
+    sameWeek();
+    var map=hoursByDay();
+    var todayK=dayKey(Date.now());
+    var todayBase=map[todayK]||0;
+    var live=currentSessionHours();
+    var todayTotal=todayBase+live;
+
+    // clock
+    if(running){
+      els.clock.innerHTML=fmtClock(Date.now()-running.start);
+      els.statusText.textContent='идёт сессия';
+      els.dot.classList.add('live');
+    }else{
+      els.clock.innerHTML=fmtHM(todayBase);
+      els.statusText.textContent = todayBase>0? 'сегодня отработано':'не запущено';
+      els.dot.classList.remove('live');
+    }
+    // ring = today progress toward 10h
+    var dayFrac=Math.min(todayTotal/GOAL_DAY,1);
+    els.ring.setAttribute('stroke-dashoffset', RING_LEN*(1-dayFrac));
+
+    // day bar
+    els.dayHours.innerHTML=todayTotal.toFixed(1)+'<span> / '+GOAL_DAY+' ч</span>';
+    setBar(els.dayBar,'dayBarWrap',todayTotal/GOAL_DAY);
+
+    // week totals
+    var weekTotal=0, daysHit=0;
+    var wk=mondayOf(new Date());
+    var perDay=[];
+    for(var i=0;i<7;i++){
+      var k=wk.getTime()+i*864e5;
+      var h=map[k]||0;
+      if(k===todayK) h+=live;
+      perDay.push({k:k,h:h,idx:i});
+      weekTotal+=h;
+      if(h>=GOAL_DAY) daysHit++;
+    }
+    els.weekHours.innerHTML=weekTotal.toFixed(1)+'<span> / '+GOAL_WEEK+' ч</span>';
+    setBar(els.weekBar,'weekBarWrap',weekTotal/GOAL_WEEK);
+    els.daysHit.innerHTML=daysHit+'<span> / '+GOAL_DAYS+' дней</span>';
+    setBar(els.daysBar,'daysBarWrap',daysHit/GOAL_DAYS);
+
+    // week strip
+    var todayIdx=(new Date().getDay()+6)%7;
+    els.week.innerHTML='';
+    perDay.forEach(function(d){
+      var el=document.createElement('div');
+      el.className='day';
+      if(d.idx===todayIdx) el.classList.add('today');
+      if(d.h>=GOAL_DAY) el.classList.add('hit');
+      if(d.idx===6) el.classList.add('rest'); // Sunday = rest by default (goal 6 days)
+      var frac=Math.min(d.h/GOAL_DAY,1)*100;
+      el.innerHTML='<div class="dname">'+DNAMES[d.idx]+'</div>'+
+        '<div class="dhours mono">'+(d.h>0?d.h.toFixed(1):'—')+'</div>'+
+        '<div class="dmini"><i style="width:'+frac+'%"></i></div>';
+      els.week.appendChild(el);
+    });
+
+    // summary
+    var remain=Math.max(GOAL_WEEK-weekTotal,0);
+    els.remain.innerHTML=remain.toFixed(1)+'<span> ч</span>';
+    var daysLeft=Math.max(GOAL_DAYS-daysHit,0);
+    var pace = daysLeft>0 ? remain/daysLeft : 0;
+    els.pace.innerHTML=(daysLeft>0?pace.toFixed(1):'0.0')+'<span> ч</span>';
+
+    // streak (consecutive days up to today meeting goal)
+    var streak=0;
+    for(var j=todayIdx;j>=0;j--){
+      if(perDay[j].h>=GOAL_DAY) streak++; else break;
+    }
+    els.streak.innerHTML=streak+'<span> дн.</span>';
+
+    // verdict
+    var v,color;
+    if(weekTotal>=GOAL_WEEK && daysHit>=GOAL_DAYS){v='Цель недели выполнена';color='var(--color-success)';}
+    else if(pace<=GOAL_DAY){v='В графике';color='var(--color-success)';}
+    else if(pace<=GOAL_DAY+2){v='Небольшое отставание';color='var(--color-secondary)';}
+    else {v='Нужно наверстать';color='var(--color-destructive)';}
+    els.verdict.textContent=v; els.verdict.style.color=color;
+
+    renderLog();
+  }
+
+  function setBar(barEl,wrapId,frac){
+    frac=Math.max(0,Math.min(frac,1));
+    barEl.style.width=(frac*100)+'%';
+    var wrap=document.getElementById(wrapId);
+    if(frac>=1) wrap.classList.add('done'); else wrap.classList.remove('done');
+  }
+
+  function renderLog(){
+    var today=state.sessions.filter(function(s){return dayKey(s.start)===dayKey(Date.now());});
+    if(today.length===0 && !running){
+      els.log.innerHTML='<div class="log-empty">Пока нет сессий. Нажми «Начать».</div>';
+      return;
+    }
+    var html='';
+    if(running){
+      html+='<div class="log-item" style="border-color:var(--color-success)"><span class="li-time"><span class="status-dot live"></span>сейчас</span><span class="li-dur mono">идёт…</span></div>';
+    }
+    today.slice().reverse().forEach(function(s){
+      var t=new Date(s.start);
+      var hh=t.getHours(), mm=t.getMinutes();
+      var label=s.manual?'добавлено вручную':(hh<10?'0'+hh:hh)+':'+(mm<10?'0'+mm:mm);
+      html+='<div class="log-item"><span class="li-time">'+label+'</span>'+
+        '<span style="display:flex;align-items:center;gap:8px"><span class="li-dur mono">'+s.hours.toFixed(2)+' ч</span>'+
+        '<button class="del" data-id="'+s.id+'" aria-label="Удалить">&times;</button></span></div>';
+    });
+    els.log.innerHTML=html;
+    Array.prototype.forEach.call(els.log.querySelectorAll('.del'),function(b){
+      b.addEventListener('click',function(){
+        var id=+b.getAttribute('data-id');
+        state.sessions=state.sessions.filter(function(s){return s.id!==id;});
+        save(); render();
+      });
+    });
+  }
+
+  function startSession(){
+    running={start:Date.now()}; save();
+    els.toggle.textContent='Пауза'; els.stop.disabled=false;
+    render();
+  }
+  function endSession(){
+    if(!running) return;
+    var hours=(Date.now()-running.start)/3.6e6;
+    if(hours>0.001){
+      state.sessions.push({id:Date.now(),start:running.start,hours:hours,manual:false});
+    }
+    running=null; save();
+    els.toggle.textContent='Начать'; els.stop.disabled=true;
+    render();
+  }
+  function toggle(){
+    if(running) endSession(); else startSession();
+  }
+
+  els.toggle.addEventListener('click',toggle);
+  els.stop.addEventListener('click',endSession);
+  els.add.addEventListener('click',function(){
+    var v=parseFloat((els.manual.value||'').replace(',','.'));
+    if(!isNaN(v)&&v>0){
+      state.sessions.push({id:Date.now(),start:Date.now(),hours:v,manual:true});
+      els.manual.value=''; save(); render();
+    }else{
+      els.manual.focus();
+    }
+  });
+  els.manual.addEventListener('keydown',function(e){if(e.key==='Enter')els.add.click();});
+  els.reset.addEventListener('click',function(){
+    if(confirm('Сбросить данные текущей недели?')){
+      state.sessions=[]; running=null; save();
+      els.toggle.textContent='Начать'; els.stop.disabled=true; render();
+    }
+  });
+
+  // restore running state
+  if(running){ els.toggle.textContent='Пауза'; els.stop.disabled=false; }
+
+  render();
+  setInterval(function(){ if(running) render(); },1000);
+})();
+</script>
+</body>
+</html>
