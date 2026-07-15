@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>WorkTracker — 10 часов в день</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@500;600;700&family=Fira+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --primary:#F59E0B;--primary-2:#D97706;--accent:#6366F1;--accent-2:#818cf8;
+    --bg:#0B1120;--surface:#141d33;--surface-2:#1c2743;--surface-3:#26324f;
+    --fg:#F8FAFC;--muted:#94a3b8;--border:rgba(255,255,255,.09);
+    --success:#22c55e;--fire:#fb923c;--danger:#ef4444;--purple:#a855f7;
+    --radius:18px;--radius-sm:12px;
+    --shadow:0 2px 6px rgba(0,0,0,.35),0 16px 40px rgba(0,0,0,.4);
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  body{
+    font-family:'Fira Sans',system-ui,sans-serif;color:var(--fg);line-height:1.5;
+    background:
+      radial-gradient(1000px 500px at 85% -8%,rgba(99,102,241,.20),transparent 55%),
+      radial-gradient(800px 480px at -5% 5%,rgba(245,158,11,.16),transparent 55%),
+      var(--bg);
+    min-height:100vh;padding:0 0 96px;
+  }
+  .mono{font-family:'Fira Code',monospace;font-variant-numeric:tabular-nums}
+  .wrap{max-width:760px;margin:0 auto;padding:0 16px}
+  button{font-family:inherit;cursor:pointer;border:none;color:var(--fg);transition:transform .15s ease,background .2s,opacity .2s,box-shadow .2s}
+  button:active{transform:scale(.97)}
+  button:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(245,158,11,.55)}
+
+  /* ---- Top bar ---- */
+  .topbar{position:sticky;top:0;z-index:20;backdrop-filter:blur(14px);
+    background:linear-gradient(180deg,rgba(11,17,32,.92),rgba(11,17,32,.55));border-bottom:1px solid var(--border)}
+  .topbar .row{display:flex;align-items:center;gap:14px;padding:14px 16px;max-width:760px;margin:0 auto}
+  .logo{width:38px;height:38px;border-radius:11px;flex:0 0 auto;display:grid;place-items:center;
+    background:linear-gradient(135deg,var(--primary),var(--primary-2));box-shadow:0 6px 16px rgba(245,158,11,.4)}
+  .brand h1{font-size:17px;font-weight:800;letter-spacing:-.3px}
+  .brand p{font-size:11.5px;color:var(--muted)}
+  .lvl{margin-left:auto;text-align:right;min-width:0}
+  .lvl .lname{font-size:11px;color:var(--muted);white-space:nowrap}
+  .lvl .lbar{width:130px;height:7px;border-radius:99px;background:var(--surface-2);overflow:hidden;margin-top:4px}
+  .lvl .lbar>i{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent-2));width:0;transition:width .6s cubic-bezier(.22,1,.36,1)}
+  .streak{display:flex;align-items:center;gap:5px;font-weight:700;font-size:15px;
+    background:linear-gradient(135deg,rgba(251,146,60,.22),rgba(239,68,68,.16));
+    border:1px solid rgba(251,146,60,.35);padding:7px 12px;border-radius:99px}
+  .streak svg{filter:drop-shadow(0 0 6px rgba(251,146,60,.7))}
+
+  /* ---- Screens ---- */
+  .screen{display:none;animation:fade .35s ease}
+  .screen.active{display:block}
+  @keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  .stack{margin-top:18px;display:flex;flex-direction:column;gap:16px}
+  .card{background:linear-gradient(180deg,var(--surface),var(--surface));border:1px solid var(--border);
+    border-radius:var(--radius);padding:20px;box-shadow:var(--shadow)}
+  .card h2{font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:14px;font-weight:700}
+
+  /* ---- Timer ---- */
+  .timer{display:flex;flex-direction:column;align-items:center;text-align:center;padding-top:26px}
+  .ring-wrap{position:relative;width:min(280px,74vw);height:min(280px,74vw);margin:6px 0 20px}
+  .ring-wrap svg{width:100%;height:100%;transform:rotate(-90deg)}
+  .rc{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+  .rc .big{font-size:clamp(38px,11vw,54px);font-weight:700;letter-spacing:-1.5px}
+  .rc .big small{font-size:.42em;color:var(--muted);font-weight:600}
+  .rc .sub{font-size:13px;color:var(--muted);margin-top:2px}
+  .rc .pct{font-size:13px;color:var(--primary);font-weight:700;margin-top:8px}
+  .bigbtn{width:min(280px,80vw);padding:18px;border-radius:16px;font-size:18px;font-weight:800;letter-spacing:.3px;
+    background:linear-gradient(135deg,var(--primary),var(--primary-2));color:#1a1204;box-shadow:0 10px 26px rgba(245,158,11,.4)}
+  .bigbtn.stop{background:linear-gradient(135deg,#ef4444,#dc2626);color:#fff;box-shadow:0 10px 26px rgba(239,68,68,.4);animation:live 1.8s infinite}
+  @keyframes live{0%,100%{box-shadow:0 10px 26px rgba(239,68,68,.4)}50%{box-shadow:0 10px 34px rgba(239,68,68,.65)}}
+
+  .today{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;width:100%;margin-top:22px}
+  .tstat{background:var(--surface-2);border:1px solid var(--border);border-radius:14px;padding:14px 8px;text-align:center}
+  .tstat .n{font-size:22px;font-weight:800;letter-spacing:-.5px}
+  .tstat .l{font-size:11px;color:var(--muted);margin-top:2px}
+  .prog{margin-top:20px;width:100%}
+  .prog .top{display:flex;justify-content:space-between;font-size:13px;color:var(--muted);margin-bottom:7px}
+  .prog .top b{color:var(--fg)}
+  .bar{height:12px;border-radius:99px;background:var(--surface-2);overflow:hidden}
+  .bar>i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--primary),var(--primary-2));width:0;transition:width .6s cubic-bezier(.22,1,.36,1)}
+  .bar.done>i{background:linear-gradient(90deg,var(--success),#4ade80)}
+
+  .sessions{display:flex;flex-direction:column;gap:9px;margin-top:6px}
+  .sess{display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--surface-2);
+    border:1px solid var(--border);border-radius:12px;padding:11px 13px;font-size:14px}
+  .sess .t{color:var(--muted)}
+  .sess .d{font-weight:700}
+  .sess .live-tag{color:var(--success);font-weight:700}
+  .del{background:none;color:var(--muted);padding:2px 6px;font-size:18px;border-radius:6px}
+  .del:hover{color:var(--danger)}
+  .empty{color:var(--muted);font-size:13.5px;text-align:center;padding:18px 0}
+  .addrow{display:flex;gap:8px;margin-top:12px}
+  .addrow input{flex:1;background:var(--surface-2);border:1px solid var(--border);border-radius:11px;color:var(--fg);padding:12px;font-family:'Fira Code',monospace;font-size:14px}
+  .addrow input:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(99,102,241,.4)}
+  .addrow button{background:var(--surface-3);padding:0 16px;border-radius:11px;font-weight:700;font-size:13.5px}
+
+  /* ---- Progress ---- */
+  .seg{display:flex;gap:6px;background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:5px}
+  .seg button{flex:1;background:none;padding:9px;border-radius:8px;font-size:13px;font-weight:600;color:var(--muted)}
+  .seg button.on{background:var(--primary);color:#1a1204}
+  .metrics{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+  .metric{background:var(--surface-2);border:1px solid var(--border);border-radius:14px;padding:15px}
+  .metric .n{font-size:24px;font-weight:800;letter-spacing:-.5px}
+  .metric .l{font-size:12px;color:var(--muted);margin-top:3px}
+  .metric .delta{font-size:12px;font-weight:700}
+  .delta.up{color:var(--success)}.delta.down{color:var(--danger)}
+  .chart{display:flex;align-items:flex-end;gap:8px;height:170px;position:relative;padding-top:10px}
+  .goalline{position:absolute;left:0;right:0;border-top:2px dashed rgba(148,163,184,.5)}
+  .goalline span{position:absolute;right:0;top:-9px;font-size:10px;color:var(--muted);background:var(--surface);padding:0 4px}
+  .colwrap{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;justify-content:flex-end}
+  .col{width:70%;max-width:34px;border-radius:6px 6px 3px 3px;background:linear-gradient(180deg,var(--primary),var(--primary-2));min-height:3px;transition:height .6s cubic-bezier(.22,1,.36,1)}
+  .col.hit{background:linear-gradient(180deg,var(--success),#4ade80)}
+  .clbl{font-size:10.5px;color:var(--muted)}
+  .cval{font-size:10.5px;font-weight:700}
+  .heat{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+  .hcell{aspect-ratio:1;border-radius:5px;background:var(--surface-2);position:relative}
+  .heat-legend{display:flex;align-items:center;gap:6px;justify-content:flex-end;margin-top:10px;font-size:11px;color:var(--muted)}
+  .heat-legend i{width:13px;height:13px;border-radius:4px;display:inline-block}
+  .badges{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:12px}
+  .badge{background:var(--surface-2);border:1px solid var(--border);border-radius:14px;padding:14px 8px;text-align:center;position:relative;transition:transform .2s}
+  .badge.on{border-color:rgba(245,158,11,.5);background:linear-gradient(180deg,rgba(245,158,11,.12),var(--surface-2))}
+  .badge.on:hover{transform:translateY(-3px)}
+  .badge.off{opacity:.42;filter:grayscale(.6)}
+  .badge .ic{width:40px;height:40px;margin:0 auto 8px;display:grid;place-items:center;border-radius:11px;background:var(--surface-3)}
+  .badge.on .ic{background:linear-gradient(135deg,var(--primary),var(--primary-2))}
+  .badge .bt{font-size:12px;font-weight:700;line-height:1.25}
+  .badge .bd{font-size:10.5px;color:var(--muted);margin-top:3px}
+
+  /* ---- Goals ---- */
+  .goalset{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .stepper{display:flex;align-items:center;gap:0;background:var(--surface-2);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+  .stepper button{background:none;width:44px;height:44px;font-size:22px;font-weight:700;color:var(--primary)}
+  .stepper .val{width:64px;text-align:center;font-size:22px;font-weight:800}
+  .reward{display:flex;align-items:center;gap:12px;background:var(--surface-2);border:1px solid var(--border);border-radius:13px;padding:12px 14px}
+  .reward.claimed{opacity:.5}
+  .reward .rtitle{font-weight:600;font-size:14.5px}
+  .reward.claimed .rtitle{text-decoration:line-through}
+  .reward .rdesc{font-size:12px;color:var(--muted)}
+  .reward .spacer{margin-left:auto}
+  .chip{font-size:12px;font-weight:700;padding:7px 12px;border-radius:9px;background:var(--surface-3)}
+  .chip.claim{background:linear-gradient(135deg,var(--success),#16a34a);color:#04210f}
+  .rewards{display:flex;flex-direction:column;gap:10px}
+
+  /* ---- Coach ---- */
+  .chat{display:flex;flex-direction:column;gap:12px;min-height:240px;max-height:44vh;overflow:auto;padding:4px 2px}
+  .msg{max-width:82%;padding:11px 14px;border-radius:15px;font-size:14px;line-height:1.45}
+  .msg.a{align-self:flex-start;background:var(--surface-2);border:1px solid var(--border);border-bottom-left-radius:5px}
+  .msg.u{align-self:flex-end;background:linear-gradient(135deg,var(--accent),var(--accent-2));border-bottom-right-radius:5px}
+  .quick{display:flex;gap:8px;overflow-x:auto;padding:12px 0 4px}
+  .quick button{flex:0 0 auto;background:var(--surface-2);border:1px solid var(--border);border-radius:99px;padding:9px 14px;font-size:12.5px;color:var(--muted);font-weight:600}
+  .quick button:hover{color:var(--fg);border-color:var(--accent)}
+  .chatin{display:flex;gap:8px;margin-top:12px}
+  .chatin input{flex:1;background:var(--surface-2);border:1px solid var(--border);border-radius:12px;color:var(--fg);padding:13px;font-size:14px}
+  .chatin input:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(99,102,241,.4)}
+  .chatin button{background:linear-gradient(135deg,var(--accent),var(--accent-2));border-radius:12px;padding:0 18px;font-weight:800}
+  .coach-note{font-size:11.5px;color:var(--muted);margin-top:10px;text-align:center}
+
+  /* ---- Bottom nav ---- */
+  nav{position:fixed;bottom:0;left:0;right:0;z-index:30;background:rgba(11,17,32,.92);backdrop-filter:blur(16px);
+    border-top:1px solid var(--border);padding:8px 8px calc(8px + env(safe-area-inset-bottom))}
+  nav .row{display:flex;max-width:760px;margin:0 auto}
+  .nav-btn{flex:1;background:none;display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 4px;color:var(--muted);font-size:11px;font-weight:600;border-radius:12px}
+  .nav-btn.on{color:var(--primary)}
+  .nav-btn svg{width:23px;height:23px}
+
+  /* ---- Modal ---- */
+  .modal{position:fixed;inset:0;z-index:50;display:none;align-items:center;justify-content:center;padding:22px;
+    background:rgba(4,8,18,.72);backdrop-filter:blur(4px)}
+  .modal.show{display:flex;animation:fade .25s ease}
+  .modal .box{background:var(--surface);border:1px solid var(--border);border-radius:22px;padding:28px 24px;max-width:380px;width:100%;text-align:center;box-shadow:var(--shadow)}
+  .modal .em{font-size:52px;line-height:1;margin-bottom:8px}
+  .modal h3{font-size:21px;font-weight:800;margin-bottom:6px}
+  .modal p{color:var(--muted);font-size:14px;margin-bottom:6px}
+  .modal .rw{background:var(--surface-2);border:1px solid rgba(245,158,11,.4);border-radius:14px;padding:14px;margin:16px 0;font-weight:700;font-size:16px}
+  .modal .actions{display:flex;gap:10px}
+  .modal .actions button{flex:1;padding:13px;border-radius:12px;font-weight:700}
+  .modal .ghost{background:var(--surface-2)}
+  .modal .go{background:linear-gradient(135deg,var(--primary),var(--primary-2));color:#1a1204}
+
+  canvas#confetti{position:fixed;inset:0;pointer-events:none;z-index:60}
+  @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="row">
+    <div class="logo"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#1a1204" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2"/><path d="M9 2h6"/></svg></div>
+    <div class="brand">
+      <h1>WorkTracker</h1>
+      <p id="levelName">Новичок</p>
+    </div>
+    <div class="lvl">
+      <div class="lname"><span id="xpText">0 XP</span> · ур. <span id="lvlNum">1</span></div>
+      <div class="lbar"><i id="xpBar"></i></div>
+    </div>
+    <div class="streak" title="Дней подряд с целью 10ч">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="#fb923c"><path d="M12 2s5 4.5 5 10a5 5 0 0 1-10 0c0-1.5.5-2.7 1-3.5C8 10 8.5 12 10 12.5 9 10 12 8 12 2z"/></svg>
+      <span id="streakNum">0</span>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <!-- ===== TIMER ===== -->
+  <section class="screen active" id="s-timer">
+    <div class="timer">
+      <div class="ring-wrap">
+        <svg viewBox="0 0 240 240">
+          <circle cx="120" cy="120" r="104" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="18"/>
+          <circle id="ring" cx="120" cy="120" r="104" fill="none" stroke="url(#rg)" stroke-width="18" stroke-linecap="round" stroke-dasharray="653" stroke-dashoffset="653"/>
+          <defs><linearGradient id="rg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#F59E0B"/><stop offset="1" stop-color="#D97706"/></linearGradient></defs>
+        </svg>
+        <div class="rc">
+          <div class="big mono" id="clock">0<small>ч</small>00<small>м</small></div>
+          <div class="sub" id="clockSub">сегодня отработано</div>
+          <div class="pct" id="dayPct">0% от цели</div>
+        </div>
+      </div>
+      <button class="bigbtn" id="startStop">▶ Старт</button>
+
+      <div class="today">
+        <div class="tstat"><div class="n mono" id="tHours">0.0</div><div class="l">часов сегодня</div></div>
+        <div class="tstat"><div class="n mono" id="tSess">0</div><div class="l">сессий</div></div>
+        <div class="tstat"><div class="n mono" id="tLeft">10.0</div><div class="l">осталось, ч</div></div>
+      </div>
+
+      <div class="prog">
+        <div class="top"><span>Дневная цель</span><span><b id="progNow">0.0</b> / <span id="progGoal">10</span> ч</span></div>
+        <div class="bar" id="dayBarWrap"><i id="dayBar"></i></div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:22px">
+      <h2>Сессии сегодня</h2>
+      <div class="sessions" id="sessList"><div class="empty">Пока нет сессий. Нажми «Старт».</div></div>
+      <div class="addrow">
+        <input id="manual" class="mono" inputmode="decimal" placeholder="добавить вручную, напр. 2.5">
+        <button id="addManual">+ ч</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== PROGRESS ===== -->
+  <section class="screen" id="s-progress">
+    <div class="stack">
+      <div class="seg" id="periodSeg">
+        <button data-p="week" class="on">Неделя</button>
+        <button data-p="month">Месяц</button>
+        <button data-p="all">Всё время</button>
+      </div>
+
+      <div class="card">
+        <h2 id="chartTitle">Часы по дням · неделя</h2>
+        <div class="chart" id="chart"></div>
+      </div>
+
+      <div class="metrics">
+        <div class="metric"><div class="n mono" id="mAvg">0.0</div><div class="l">среднее ч/день</div></div>
+        <div class="metric"><div class="n mono" id="mPct">0%</div><div class="l">выполнение цели</div></div>
+        <div class="metric"><div class="n mono" id="mBest">0.0</div><div class="l">лучший день, ч</div></div>
+        <div class="metric"><div class="n mono" id="mTotal">0.0</div><div class="l">всего часов</div></div>
+      </div>
+
+      <div class="card">
+        <h2>Активность · последние 5 недель</h2>
+        <div class="heat" id="heat"></div>
+        <div class="heat-legend">меньше <i style="background:var(--surface-2)"></i><i style="background:rgba(245,158,11,.35)"></i><i style="background:rgba(245,158,11,.65)"></i><i style="background:var(--primary)"></i> больше</div>
+      </div>
+
+      <div class="card">
+        <h2>Ачивки</h2>
+        <div class="badges" id="badges"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== GOALS ===== -->
+  <section class="screen" id="s-goals">
+    <div class="stack">
+      <div class="card">
+        <h2>Дневная цель</h2>
+        <div class="goalset">
+          <div class="stepper">
+            <button id="goalMinus" aria-label="Меньше">−</button>
+            <div class="val mono" id="goalVal">10</div>
+            <button id="goalPlus" aria-label="Больше">+</button>
+          </div>
+          <div style="color:var(--muted);font-size:13.5px">часов в день<br><span style="color:var(--fg);font-weight:600" id="weekGoalText">= 60 ч в неделю (6 дней)</span></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Мои награды</h2>
+        <div class="rewards" id="rewards"></div>
+        <div class="addrow">
+          <input id="newReward" placeholder="новая награда, напр. «Вечер сериалов»">
+          <button id="addReward">+ Добавить</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Полученные</h2>
+        <div class="rewards" id="claimedList"><div class="empty">Пока пусто — выполни цель и забери награду.</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== COACH ===== -->
+  <section class="screen" id="s-coach">
+    <div class="stack">
+      <div class="card">
+        <h2>AI-коуч продуктивности</h2>
+        <div class="chat" id="chat"></div>
+        <div class="quick" id="quick">
+          <button data-q="Почему я отстаю от цели на этой неделе?">Почему отстаю?</button>
+          <button data-q="Дай совет по фокусировке в стиле Alex Hormozi">Фокус (Hormozi)</button>
+          <button data-q="Как выстроить утреннюю рутину для 10 часов работы?">Утренняя рутина</button>
+          <button data-q="Как не сорвать стрик?">Держать стрик</button>
+        </div>
+        <div class="chatin">
+          <input id="chatInput" placeholder="Спроси коуча…">
+          <button id="chatSend">→</button>
+        </div>
+        <p class="coach-note">Прототип: ответы на основе твоей статистики по правилам. В реальном приложении сюда подключается Claude API.</p>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<nav>
+  <div class="row">
+    <button class="nav-btn on" data-s="timer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2"/></svg>Таймер</button>
+    <button class="nav-btn" data-s="progress"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><rect x="7" y="10" width="3" height="7"/><rect x="12" y="6" width="3" height="11"/><rect x="17" y="13" width="3" height="4"/></svg>Прогресс</button>
+    <button class="nav-btn" data-s="goals"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/></svg>Цели</button>
+    <button class="nav-btn" data-s="coach"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V6a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/></svg>Коуч</button>
+  </div>
+</nav>
+
+<!-- reward modal -->
+<div class="modal" id="rewardModal">
+  <div class="box">
+    <div class="em">🎉</div>
+    <h3>Цель достигнута!</h3>
+    <p>Ты отработал дневную норму. Вот награда, которую советую забрать:</p>
+    <div class="rw" id="modalReward">—</div>
+    <div class="actions">
+      <button class="ghost" id="modalLater">Позже</button>
+      <button class="go" id="modalClaim">Забрать 🎁</button>
+    </div>
+  </div>
+</div>
+
+<canvas id="confetti"></canvas>
+
+<script>
+(function(){
+  "use strict";
+  var STORE="worktracker.proto.v1";
+  var RING=653;
+  var LEVELS=["Новичок","Разгоняюсь","В потоке","Дисциплина","Машина","Хищник","Легенда"];
+
+  function defState(){
+    return {
+      goalDay:10, weekStart:mondayISO(new Date()), sessions:[], running:null,
+      xp:0, history:{}, // dateKey -> hours (past days, filled on week roll)
+      rewards:[
+        {id:1,title:"Вечер сериалов",claimed:false},
+        {id:2,title:"Заказать любимую еду",claimed:false},
+        {id:3,title:"Час любимой игры",claimed:false},
+        {id:4,title:"Прогулка без телефона",claimed:false}
+      ],
+      chat:[], badgesShown:[], claimedToday:false, lastClaimDay:null
+    };
+  }
+  var st=load(), running=st.running||null;
+
+  function load(){try{var r=localStorage.getItem(STORE);if(r){var s=JSON.parse(r);var d=defState();for(var k in d)if(s[k]===undefined)s[k]=d[k];return s;}}catch(e){}return defState();}
+  function save(){st.running=running;try{localStorage.setItem(STORE,JSON.stringify(st));}catch(e){}}
+  function mondayISO(d){d=new Date(d);var g=(d.getDay()+6)%7;d.setHours(0,0,0,0);d.setDate(d.getDate()-g);return d.toISOString();}
+  function dayKey(ms){var d=new Date(ms);d.setHours(0,0,0,0);return d.getTime();}
+  function todayKey(){return dayKey(Date.now());}
+
+  function rollWeek(){
+    var cur=mondayISO(new Date());
+    if(st.weekStart!==cur){
+      // archive this week's per-day hours into history, then reset
+      var map=weekMap();
+      for(var k in map){ if(map[k]>0) st.history[k]=map[k]; }
+      st.weekStart=cur; st.sessions=[]; running=null; st.claimedToday=false;
+      save();
+    }
+  }
+  function liveHours(){return running?(Date.now()-running.start)/3.6e6:0;}
+
+  function weekMap(){
+    var map={}, wk=new Date(st.weekStart);
+    for(var i=0;i<7;i++)map[wk.getTime()+i*864e5]=0;
+    st.sessions.forEach(function(s){var k=dayKey(s.start);if(map[k]!==undefined)map[k]+=s.hours;});
+    return map;
+  }
+  // full per-day hours incl history + live
+  function allDays(){
+    var m={};
+    for(var k in st.history)m[k]=st.history[k];
+    var wm=weekMap(); for(var j in wm)m[j]=(m[j]||0)+wm[j];
+    var tk=todayKey(); m[tk]=(m[tk]||0)+liveHours();
+    return m;
+  }
+
+  var $=function(id){return document.getElementById(id);};
+
+  /* ---------- LEVEL / XP ---------- */
+  function levelInfo(){
+    var xp=Math.floor(st.xp);
+    var lvl=Math.floor(xp/500)+1; if(lvl>LEVELS.length)lvl=LEVELS.length;
+    var into=xp%500, frac=into/500;
+    return {lvl:lvl,frac:frac,name:LEVELS[Math.min(lvl-1,LEVELS.length-1)],xp:xp};
+  }
+
+  /* ---------- STREAK ---------- */
+  function streak(){
+    var m=allDays(), s=0, d=new Date();d.setHours(0,0,0,0);
+    // if today not yet hit, start from yesterday so streak isn't prematurely 0
+    var startOffset = (m[d.getTime()]||0)>=st.goalDay ? 0 : 1;
+    for(var i=startOffset;i<400;i++){
+      var k=d.getTime()-i*864e5;
+      if((m[k]||0)>=st.goalDay)s++;else break;
+    }
+    return s;
+  }
+
+  /* ---------- BADGES ---------- */
+  function badgeDefs(){
+    var m=allDays(), tk=todayKey();
+    var weekTotal=0,wk=new Date(st.weekStart);for(var i=0;i<7;i++)weekTotal+=(m[wk.getTime()+i*864e5]||0);
+    var earlyBird=st.sessions.some(function(s){return new Date(s.start).getHours()<7;});
+    var best=0;for(var k in m)best=Math.max(best,m[k]);
+    var totalHours=0;for(var j in m)totalHours+=m[j];
+    return [
+      {id:"first",ic:"▶",t:"Первый час",d:"1 час работы",on:totalHours>=1},
+      {id:"day",ic:"✓",t:"Норма дня",d:"10 ч за день",on:(m[tk]||0)>=st.goalDay||best>=st.goalDay},
+      {id:"streak3",ic:"🔥",t:"Разогрев",d:"3 дня подряд",on:streak()>=3},
+      {id:"streak6",ic:"🔥",t:"Неделя силы",d:"6 дней подряд",on:streak()>=6},
+      {id:"early",ic:"🌅",t:"Ранняя пташка",d:"старт до 7:00",on:earlyBird},
+      {id:"week60",ic:"🏆",t:"60 за неделю",d:"60 ч в неделю",on:weekTotal>=60},
+      {id:"marathon",ic:"⚡",t:"Марафон",d:"12 ч за день",on:best>=12},
+      {id:"century",ic:"💯",t:"Сотка",d:"100 ч всего",on:totalHours>=100}
+    ];
+  }
+
+  /* ---------- RENDER ---------- */
+  function render(){
+    rollWeek();
+    var m=allDays(), tk=todayKey();
+    var todayH=m[tk]||0;
+    var live=liveHours();
+
+    // clock
+    if(running){
+      var ms=Date.now()-running.start,s=Math.floor(ms/1000),h=Math.floor(s/3600),mn=Math.floor((s%3600)/60),sc=s%60;
+      $("clock").innerHTML=h+"<small>ч</small>"+pad(mn)+"<small>м</small>"+pad(sc)+"<small>с</small>";
+      $("clockSub").textContent="идёт сессия…";
+    }else{
+      $("clock").innerHTML=fmtH(todayH);
+      $("clockSub").textContent=todayH>0?"сегодня отработано":"нажми старт";
+    }
+    var dfrac=Math.min(todayH/st.goalDay,1);
+    $("ring").setAttribute("stroke-dashoffset",RING*(1-dfrac));
+    $("dayPct").textContent=Math.round(dfrac*100)+"% от цели";
+
+    $("startStop").innerHTML=running?"⏸ Стоп":"▶ Старт";
+    $("startStop").className="bigbtn"+(running?" stop":"");
+
+    // today stats
+    $("tHours").textContent=todayH.toFixed(1);
+    var todaySess=st.sessions.filter(function(x){return dayKey(x.start)===tk;}).length+(running?1:0);
+    $("tSess").textContent=todaySess;
+    $("tLeft").textContent=Math.max(st.goalDay-todayH,0).toFixed(1);
+    $("progNow").textContent=todayH.toFixed(1);
+    $("progGoal").textContent=st.goalDay;
+    setBar("dayBar","dayBarWrap",todayH/st.goalDay);
+
+    renderSessions();
+
+    // level
+    var li=levelInfo();
+    $("levelName").textContent=li.name;
+    $("xpText").textContent=li.xp+" XP";
+    $("lvlNum").textContent=li.lvl;
+    $("xpBar").style.width=(li.frac*100)+"%";
+    $("streakNum").textContent=streak();
+
+    // goals screen
+    $("goalVal").textContent=st.goalDay;
+    $("weekGoalText").textContent="= "+(st.goalDay*6)+" ч в неделю (6 дней)";
+    renderRewards();
+
+    renderProgress();
+    renderBadges();
+
+    // auto reward trigger
+    checkGoalHit(todayH);
+    save();
+  }
+  function pad(n){return n<10?"0"+n:n;}
+  function fmtH(hours){var t=Math.round(hours*60),h=Math.floor(t/60),m=t%60;return h+"<small>ч</small>"+pad(m)+"<small>м</small>";}
+  function setBar(barId,wrapId,frac){frac=Math.max(0,Math.min(frac,1));$(barId).style.width=(frac*100)+"%";var w=$(wrapId);if(frac>=1)w.classList.add("done");else w.classList.remove("done");}
+
+  function renderSessions(){
+    var tk=todayKey(), list=st.sessions.filter(function(s){return dayKey(s.start)===tk;});
+    var box=$("sessList");
+    if(list.length===0&&!running){box.innerHTML='<div class="empty">Пока нет сессий. Нажми «Старт».</div>';return;}
+    var html="";
+    if(running)html+='<div class="sess" style="border-color:rgba(34,197,94,.4)"><span class="t">сейчас</span><span class="live-tag">идёт…</span></div>';
+    list.slice().reverse().forEach(function(s){
+      var d=new Date(s.start),lab=s.manual?"вручную":pad(d.getHours())+":"+pad(d.getMinutes());
+      html+='<div class="sess"><span class="t">'+lab+'</span><span style="display:flex;gap:10px;align-items:center"><span class="d mono">'+s.hours.toFixed(2)+' ч</span><button class="del" data-id="'+s.id+'" aria-label="Удалить">×</button></span></div>';
+    });
+    box.innerHTML=html;
+    box.querySelectorAll(".del").forEach(function(b){b.onclick=function(){st.sessions=st.sessions.filter(function(s){return s.id!=b.dataset.id;});save();render();};});
+  }
+
+  function renderRewards(){
+    var box=$("rewards"),cl=$("claimedList"),act="",clm="";
+    st.rewards.forEach(function(r){
+      if(r.claimed){
+        clm+='<div class="reward claimed"><span class="rtitle">'+esc(r.title)+'</span></div>';
+      }else{
+        act+='<div class="reward"><span><span class="rtitle">'+esc(r.title)+'</span></span><span class="spacer"></span><button class="del" data-rid="'+r.id+'">×</button></div>';
+      }
+    });
+    box.innerHTML=act||'<div class="empty">Добавь награды ниже.</div>';
+    cl.innerHTML=clm||'<div class="empty">Пока пусто — выполни цель и забери награду.</div>';
+    box.querySelectorAll(".del").forEach(function(b){b.onclick=function(){st.rewards=st.rewards.filter(function(r){return r.id!=b.dataset.rid;});save();render();};});
+  }
+
+  function renderProgress(){
+    var m=allDays();
+    var p=st._period||"week";
+    var days=[], now=new Date();now.setHours(0,0,0,0);
+    var n = p==="week"?7 : p==="month"?30 : 42;
+    for(var i=n-1;i>=0;i--){var k=now.getTime()-i*864e5;days.push({k:k,h:m[k]||0,date:new Date(k)});}
+    $("chartTitle").textContent="Часы по дням · "+(p==="week"?"неделя":p==="month"?"месяц":"всё время");
+
+    // chart (show up to 14 bars for readability)
+    var show=days.slice(-Math.min(days.length,p==="week"?7:14));
+    var maxH=Math.max(st.goalDay,Math.max.apply(null,show.map(function(d){return d.h;})),1);
+    var ch=$("chart"),html="";
+    var DN=["Вс","Пн","Вт","Ср","Чт","Пт","Сб"];
+    show.forEach(function(d){
+      var ph=(d.h/maxH)*100;
+      var lbl=p==="week"?DN[d.date.getDay()]:(d.date.getDate());
+      html+='<div class="colwrap"><span class="cval mono">'+(d.h>0?d.h.toFixed(1):"")+'</span><div class="col'+(d.h>=st.goalDay?" hit":"")+'" style="height:'+ph+'%"></div><span class="clbl">'+lbl+'</span></div>';
+    });
+    // goal line
+    var gp=(st.goalDay/maxH)*100;
+    html='<div class="goalline" style="bottom:calc('+gp+'% - 4px)"><span>цель '+st.goalDay+'ч</span></div>'+html;
+    ch.innerHTML=html;
+
+    // metrics
+    var vals=days.map(function(d){return d.h;});
+    var total=vals.reduce(function(a,b){return a+b;},0);
+    var active=vals.filter(function(v){return v>0;}).length||1;
+    var avg=total/active;
+    var hitDays=vals.filter(function(v){return v>=st.goalDay;}).length;
+    var pct=Math.round((hitDays/n)*100);
+    var best=Math.max.apply(null,vals);
+    $("mAvg").textContent=avg.toFixed(1);
+    $("mPct").textContent=pct+"%";
+    $("mBest").textContent=best.toFixed(1);
+    $("mTotal").textContent=total.toFixed(0);
+
+    // heatmap 5 weeks (35 days) aligned
+    var heat=$("heat"),hh="";
+    var start=new Date(mondayISO(new Date()));start.setDate(start.getDate()-28);
+    for(var w=0;w<5;w++)for(var dd=0;dd<7;dd++){
+      var k=start.getTime()+(w*7+dd)*864e5;
+      var val=m[k]||0,frac=Math.min(val/st.goalDay,1);
+      var bg = frac===0?"var(--surface-2)": frac<.34?"rgba(245,158,11,.35)": frac<.67?"rgba(245,158,11,.55)": frac<1?"rgba(245,158,11,.8)":"var(--primary)";
+      var future=k>todayKey();
+      hh+='<div class="hcell" title="'+val.toFixed(1)+' ч" style="background:'+(future?"transparent":bg)+(future?";opacity:.25":"")+'"></div>';
+    }
+    heat.innerHTML=hh;
+  }
+
+  function renderBadges(){
+    var box=$("badges"),html="";
+    badgeDefs().forEach(function(b){
+      html+='<div class="badge '+(b.on?"on":"off")+'"><div class="ic" style="font-size:19px">'+b.ic+'</div><div class="bt">'+b.t+'</div><div class="bd">'+b.d+'</div></div>';
+    });
+    box.innerHTML=html;
+  }
+  function esc(s){return String(s).replace(/[<>&]/g,function(c){return{"<":"&lt;",">":"&gt;","&":"&amp;"}[c];});}
+
+  /* ---------- ACTIONS ---------- */
+  function toggle(){
+    if(running){
+      var hrs=(Date.now()-running.start)/3.6e6;
+      if(hrs>0.0005){st.sessions.push({id:Date.now(),start:running.start,hours:hrs,manual:false});addXP(hrs*10);}
+      running=null;
+    }else{running={start:Date.now()};}
+    save();render();
+  }
+  function addXP(n){st.xp+=n;}
+  function addManualHours(v){st.sessions.push({id:Date.now(),start:Date.now(),hours:v,manual:true});addXP(v*10);save();render();}
+
+  var lastHitState=false;
+  function checkGoalHit(todayH){
+    var hit=todayH>=st.goalDay;
+    if(hit && !st.claimedToday && !lastHitState){
+      // award bonus once per day
+      if(st.lastClaimDay!==todayKey()){
+        addXP(50); st.lastClaimDay=todayKey();
+        fireConfetti();
+        recommendReward();
+      }
+    }
+    lastHitState=hit;
+  }
+  function recommendReward(){
+    var pool=st.rewards.filter(function(r){return !r.claimed;});
+    if(pool.length===0)return;
+    var pick=pool[0]; // priority by add order — easy to swap for random
+    $("modalReward").textContent=pick.title;
+    $("rewardModal").classList.add("show");
+    $("modalClaim").onclick=function(){pick.claimed=true;st.claimedToday=true;save();render();$("rewardModal").classList.remove("show");};
+    $("modalLater").onclick=function(){st.claimedToday=true;save();$("rewardModal").classList.remove("show");};
+  }
+
+  /* ---------- COACH (rule-based) ---------- */
+  function coachReply(q){
+    var m=allDays(),tk=todayKey(),todayH=m[tk]||0;
+    var wk=new Date(st.weekStart),weekTotal=0,hit=0;
+    for(var i=0;i<7;i++){var h=m[wk.getTime()+i*864e5]||0;weekTotal+=h;if(h>=st.goalDay)hit++;}
+    var str=streak(), remain=Math.max(st.goalDay*6-weekTotal,0);
+    var ql=q.toLowerCase();
+    if(ql.indexOf("отста")>=0||ql.indexOf("успева")>=0||ql.indexOf("почему")>=0){
+      return "За неделю у тебя "+weekTotal.toFixed(1)+" ч из "+(st.goalDay*6)+" ("+hit+" из 6 дней закрыто). До цели осталось "+remain.toFixed(1)+" ч. Разбей это на блоки по 90 минут и убери телефон из поля зрения — чаще всего отставание идёт не от нехватки времени, а от переключений. Сегодня уже "+todayH.toFixed(1)+" ч, добей ещё "+Math.max(st.goalDay-todayH,0).toFixed(1)+" ч.";
+    }
+    if(ql.indexOf("hormozi")>=0||ql.indexOf("фокус")>=0){
+      return "Принцип Alex Hormozi: «volume beats perfection». Не ищи идеальные условия — набирай объём. Выбери одну задачу №1 на сегодня и работай по ней до первого блока в "+st.goalDay+" ч, всё остальное — потом. Меньше вкладок, больше повторений.";
+    }
+    if(ql.indexOf("рутин")>=0||ql.indexOf("утр")>=0){
+      return "Утренняя рутина под 10 ч: 1) фиксированное время подъёма, 2) первые 90 минут — самая тяжёлая задача без телефона, 3) вода + свет + короткая разминка перед стартом таймера. Нажимай «Старт» сразу — это якорь, после него мозг переключается в режим работы.";
+    }
+    if(ql.indexOf("стрик")>=0){
+      return "Твой стрик: "+str+" дн. Правило анти-срыва: в плохой день делай хотя бы минимум, но не ноль — даже 10ч кажутся неподъёмными, начни с одной 90-минутной сессии. Стрик рвётся не от усталости, а от «пропущу один день». Сегодня осталось "+Math.max(st.goalDay-todayH,0).toFixed(1)+" ч.";
+    }
+    return "Сейчас: сегодня "+todayH.toFixed(1)+" ч, за неделю "+weekTotal.toFixed(1)+"/"+(st.goalDay*6)+" ч, стрик "+str+" дн. Совет: работай блоками по 90 минут с короткими паузами и держи одну главную задачу в фокусе. Спроси конкретнее — про фокус, рутину или стрик.";
+  }
+  function pushMsg(role,txt){st.chat.push({role:role,content:txt});save();renderChat();}
+  function renderChat(){
+    var box=$("chat");
+    if(st.chat.length===0){box.innerHTML='<div class="msg a">Привет! Я твой коуч. Задавай вопросы — я вижу твою статистику по работе и подскажу, как выйти на 10 часов в день.</div>';return;}
+    box.innerHTML=st.chat.map(function(m){return '<div class="msg '+(m.role==="user"?"u":"a")+'">'+esc(m.content)+'</div>';}).join("");
+    box.scrollTop=box.scrollHeight;
+  }
+  function sendChat(txt){
+    txt=(txt||"").trim();if(!txt)return;
+    pushMsg("user",txt);
+    setTimeout(function(){pushMsg("assistant",coachReply(txt));},350);
+  }
+
+  /* ---------- CONFETTI ---------- */
+  function fireConfetti(){
+    var c=$("confetti"),ctx=c.getContext("2d");
+    c.width=innerWidth;c.height=innerHeight;
+    var cols=["#F59E0B","#6366F1","#22c55e","#fb923c","#a855f7","#fff"];
+    var parts=[];for(var i=0;i<140;i++)parts.push({x:innerWidth/2,y:innerHeight/3,vx:(Math.random()-.5)*14,vy:Math.random()*-14-4,g:.4+Math.random()*.3,s:5+Math.random()*6,c:cols[i%cols.length],r:Math.random()*6,vr:(Math.random()-.5)*.4,a:1});
+    var t0=Date.now();
+    (function anim(){
+      var el=Date.now()-t0;ctx.clearRect(0,0,c.width,c.height);
+      parts.forEach(function(p){p.vy+=p.g;p.x+=p.vx;p.y+=p.vy;p.r+=p.vr;p.a=Math.max(0,1-el/2200);ctx.save();ctx.globalAlpha=p.a;ctx.translate(p.x,p.y);ctx.rotate(p.r);ctx.fillStyle=p.c;ctx.fillRect(-p.s/2,-p.s/2,p.s,p.s*.6);ctx.restore();});
+      if(el<2200)requestAnimationFrame(anim);else ctx.clearRect(0,0,c.width,c.height);
+    })();
+  }
+
+  /* ---------- NAV ---------- */
+  function go(scr){
+    document.querySelectorAll(".screen").forEach(function(s){s.classList.remove("active");});
+    $("s-"+scr).classList.add("active");
+    document.querySelectorAll(".nav-btn").forEach(function(b){b.classList.toggle("on",b.dataset.s===scr);});
+    if(scr==="coach")renderChat();
+    window.scrollTo({top:0,behavior:"smooth"});
+  }
+
+  /* ---------- BIND ---------- */
+  $("startStop").onclick=toggle;
+  $("addManual").onclick=function(){var v=parseFloat(($("manual").value||"").replace(",","."));if(!isNaN(v)&&v>0){$("manual").value="";addManualHours(v);}else $("manual").focus();};
+  $("manual").addEventListener("keydown",function(e){if(e.key==="Enter")$("addManual").click();});
+  $("goalPlus").onclick=function(){if(st.goalDay<16){st.goalDay++;save();render();}};
+  $("goalMinus").onclick=function(){if(st.goalDay>1){st.goalDay--;save();render();}};
+  $("addReward").onclick=function(){var v=($("newReward").value||"").trim();if(v){st.rewards.push({id:Date.now(),title:v,claimed:false});$("newReward").value="";save();render();}};
+  $("newReward").addEventListener("keydown",function(e){if(e.key==="Enter")$("addReward").click();});
+  $("chatSend").onclick=function(){sendChat($("chatInput").value);$("chatInput").value="";};
+  $("chatInput").addEventListener("keydown",function(e){if(e.key==="Enter"){sendChat($("chatInput").value);$("chatInput").value="";}});
+  document.querySelectorAll("#quick button").forEach(function(b){b.onclick=function(){sendChat(b.dataset.q);};});
+  document.querySelectorAll(".nav-btn").forEach(function(b){b.onclick=function(){go(b.dataset.s);};});
+  $("periodSeg").querySelectorAll("button").forEach(function(b){b.onclick=function(){st._period=b.dataset.p;$("periodSeg").querySelectorAll("button").forEach(function(x){x.classList.toggle("on",x===b);});renderProgress();};});
+
+  if(running){$("startStop").innerHTML="⏸ Стоп";$("startStop").className="bigbtn stop";}
+  render();renderChat();
+  setInterval(function(){if(running)render();},1000);
+  addEventListener("resize",function(){var c=$("confetti");c.width=innerWidth;c.height=innerHeight;});
+})();
+</script>
+</body>
+</html>
