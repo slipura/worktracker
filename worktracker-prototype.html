@@ -44,7 +44,9 @@
   /* ---- Top bar ---- */
   .topbar{position:sticky;top:0;z-index:20;backdrop-filter:blur(14px);
     background:linear-gradient(180deg,rgba(11,17,32,.92),rgba(11,17,32,.55));border-bottom:1px solid var(--border)}
-  .topbar .row{display:flex;align-items:center;gap:14px;padding:14px 16px;max-width:760px;margin:0 auto}
+  .topbar .row{display:flex;align-items:center;gap:14px;
+    padding:calc(14px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right)) 14px calc(16px + env(safe-area-inset-left));
+    max-width:760px;margin:0 auto}
   .logo{width:38px;height:38px;border-radius:11px;flex:0 0 auto;display:grid;place-items:center;
     background:linear-gradient(135deg,var(--primary),var(--primary-2));box-shadow:0 6px 16px rgba(245,158,11,.4)}
   .brand h1{font-size:17px;font-weight:800;letter-spacing:-.3px}
