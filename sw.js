@@ -2,7 +2,7 @@
    Strategy: network-first for the HTML document (so updates reach installed
    apps as soon as they're online), cache-first for static assets (icons).
    Bump CACHE when shipping changes to force old caches to clear. */
-var CACHE = "worktracker-v2";
+var CACHE = "worktracker-v3";
 var ASSETS = [
   "./",
   "index.html",
@@ -37,6 +37,10 @@ function isDoc(req) {
 }
 
 self.addEventListener("fetch", function (e) {
+  var url = new URL(e.request.url);
+  // Never intercept the sync API — always go to network.
+  if (url.pathname === "/sync") return;
+
   if (e.request.method !== "GET") return;
 
   // HTML: network-first, fall back to cache when offline.

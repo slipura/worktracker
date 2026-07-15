@@ -111,6 +111,12 @@
   .addrow button{background:var(--surface-3);padding:0 16px;border-radius:11px;font-weight:700;font-size:13.5px;white-space:nowrap}
   .addrow input[type=date],.addrow input[type=time]{color-scheme:dark;flex:1;min-width:0}
   .ma-title{font-size:12.5px;color:var(--muted);margin:14px 0 8px;font-weight:600}
+  .sync-status{font-size:13px;color:var(--muted);line-height:1.5}
+  .sync-code-row{display:flex;align-items:center;gap:10px;margin-top:12px;background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:12px 14px}
+  .sync-code{flex:1;font-size:16px;font-weight:700;letter-spacing:1px;word-break:break-all}
+  .sync-code-row button{background:var(--surface-3);padding:8px 12px;border-radius:9px;font-weight:700;font-size:12.5px;white-space:nowrap}
+  .sync-hint{font-size:12px;color:var(--muted);margin-top:8px}
+  .sync-btn{width:100%;background:linear-gradient(135deg,var(--accent),var(--accent-2));padding:13px;border-radius:12px;font-weight:800;font-size:14px}
 
   /* ---- Progress ---- */
   .seg{display:flex;gap:6px;background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:5px}
@@ -327,6 +333,28 @@
         <h2>Полученные</h2>
         <div class="rewards" id="claimedList"><div class="empty">Пока пусто — выполни цель и забери награду.</div></div>
       </div>
+
+      <div class="card">
+        <h2>Синхронизация прогресса</h2>
+        <div id="syncStatus" class="sync-status">Синхронизация выключена. Прогресс хранится только на этом устройстве.</div>
+        <div id="syncOn" style="display:none">
+          <div class="sync-code-row">
+            <span class="sync-code mono" id="syncCodeText">—</span>
+            <button id="copyCode">Копировать</button>
+          </div>
+          <p class="sync-hint">Сохрани этот код. Введи его на другом устройстве или после переустановки, чтобы вернуть прогресс.</p>
+        </div>
+        <div class="addrow" style="margin-top:12px">
+          <button id="enableSync" class="sync-btn">Включить синхронизацию</button>
+        </div>
+        <div style="margin-top:6px">
+          <div class="ma-title">Восстановить по коду</div>
+          <div class="addrow">
+            <input id="restoreCode" class="mono" placeholder="код с другого устройства">
+            <button id="restoreBtn">Загрузить</button>
+          </div>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -395,13 +423,93 @@
         {id:3,title:"Час любимой игры",claimed:false},
         {id:4,title:"Прогулка без телефона",claimed:false}
       ],
-      chat:[], badgesShown:[], claimedToday:false, lastClaimDay:null
+      chat:[], badgesShown:[], claimedToday:false, lastClaimDay:null, updatedAt:0
     };
   }
   var st=load(), running=st.running||null;
 
-  function load(){try{var r=localStorage.getItem(STORE);if(r){var s=JSON.parse(r);var d=defState();for(var k in d)if(s[k]===undefined)s[k]=d[k];return s;}}catch(e){}return defState();}
-  function save(){st.running=running;try{localStorage.setItem(STORE,JSON.stringify(st));}catch(e){}}
+  // ---- cloud sync state ----
+  var SYNCK="worktracker.sync.code", syncCode=null, bootUpdatedAt=st.updatedAt||0, pushTimer=null;
+  try{syncCode=localStorage.getItem(SYNCK)||null;}catch(e){}
+
+  function withDefaults(s){var d=defState();for(var k in d)if(s[k]===undefined)s[k]=d[k];return s;}
+  function load(){try{var r=localStorage.getItem(STORE);if(r){return withDefaults(JSON.parse(r));}}catch(e){}return defState();}
+  function save(){st.running=running;st.updatedAt=Date.now();try{localStorage.setItem(STORE,JSON.stringify(st));}catch(e){}schedulePush();}
+
+  /* ---------- CLOUD SYNC ---------- */
+  function genCode(){
+    var a="ABCDEFGHJKMNPQRSTUVWXYZ23456789",s="",i,arr=null;
+    try{if(window.crypto&&crypto.getRandomValues)arr=crypto.getRandomValues(new Uint8Array(16));}catch(e){}
+    for(i=0;i<16;i++){var r=arr?arr[i]:Math.floor(Math.random()*256);s+=a[r%a.length];if(i===3||i===7||i===11)s+="-";}
+    return s;
+  }
+  function schedulePush(){ if(!syncCode)return; clearTimeout(pushTimer); pushTimer=setTimeout(pushCloud,1500); }
+  function pushCloud(){
+    if(!syncCode)return;
+    fetch("/sync",{method:"PUT",headers:{"content-type":"application/json","x-sync-code":syncCode},body:JSON.stringify(st)})
+      .then(function(r){return r.json();})
+      .then(function(res){setSyncStatus(res&&res.ok?"saved":"error");})
+      .catch(function(){setSyncStatus("offline");});
+  }
+  function pullCloud(code,cb){
+    fetch("/sync",{headers:{"x-sync-code":code}})
+      .then(function(r){return r.json();})
+      .then(function(remote){cb(null,remote);})
+      .catch(function(e){cb(e);});
+  }
+  function setSyncStatus(k){
+    var el=$("syncStatus"); if(!el)return;
+    var map={
+      off:"Синхронизация выключена. Прогресс хранится только на этом устройстве.",
+      saved:"✓ Синхронизировано с облаком.",
+      loaded:"✓ Прогресс загружен из облака.",
+      loading:"Загрузка…",
+      offline:"Нет сети — сохранено локально, отправлю позже.",
+      notfound:"По этому коду данных не найдено.",
+      error:"Ошибка синхронизации."
+    };
+    el.textContent=map[k]||map.off;
+  }
+  function showSyncOn(){
+    if($("syncCodeText"))$("syncCodeText").textContent=syncCode||"—";
+    if($("syncOn"))$("syncOn").style.display=syncCode?"block":"none";
+    if($("enableSync"))$("enableSync").style.display=syncCode?"none":"block";
+  }
+  function enableSync(){
+    syncCode=genCode();
+    try{localStorage.setItem(SYNCK,syncCode);}catch(e){}
+    showSyncOn(); setSyncStatus("loading"); pushCloud();
+  }
+  function restoreByCode(){
+    var code=(($("restoreCode").value)||"").trim().toUpperCase();
+    if(!/^[A-Z0-9-]{8,64}$/.test(code)){$("restoreCode").focus();return;}
+    setSyncStatus("loading");
+    pullCloud(code,function(err,remote){
+      if(err){setSyncStatus("offline");return;}
+      if(!remote||typeof remote!=="object"){setSyncStatus("notfound");return;}
+      syncCode=code; try{localStorage.setItem(SYNCK,syncCode);}catch(e){}
+      st=withDefaults(remote); running=st.running||null;
+      bootUpdatedAt=st.updatedAt||0;
+      try{localStorage.setItem(STORE,JSON.stringify(st));}catch(e){}
+      render(); renderChat(); showSyncOn(); setSyncStatus("loaded");
+      $("restoreCode").value="";
+    });
+  }
+  function initSync(){
+    showSyncOn();
+    if(!syncCode){setSyncStatus("off");return;}
+    setSyncStatus("loading");
+    pullCloud(syncCode,function(err,remote){
+      if(err){setSyncStatus("offline");return;}
+      if(remote&&typeof remote==="object"&&(remote.updatedAt||0)>bootUpdatedAt){
+        st=withDefaults(remote); running=st.running||null; bootUpdatedAt=st.updatedAt||0;
+        try{localStorage.setItem(STORE,JSON.stringify(st));}catch(e){}
+        render(); renderChat(); setSyncStatus("loaded");
+      }else{
+        pushCloud();
+      }
+    });
+  }
   function mondayISO(d){d=new Date(d);var g=(d.getDay()+6)%7;d.setHours(0,0,0,0);d.setDate(d.getDate()-g);return d.toISOString();}
   function dayKey(ms){var d=new Date(ms);d.setHours(0,0,0,0);return d.getTime();}
   function todayKey(){return dayKey(Date.now());}
@@ -769,8 +877,19 @@
   document.querySelectorAll(".nav-btn").forEach(function(b){b.onclick=function(){go(b.dataset.s);};});
   $("periodSeg").querySelectorAll("button").forEach(function(b){b.onclick=function(){st._period=b.dataset.p;$("periodSeg").querySelectorAll("button").forEach(function(x){x.classList.toggle("on",x===b);});renderProgress();};});
 
+  $("enableSync").onclick=enableSync;
+  $("restoreBtn").onclick=restoreByCode;
+  $("restoreCode").addEventListener("keydown",function(e){if(e.key==="Enter")restoreByCode();});
+  $("copyCode").onclick=function(){
+    var t=syncCode||"";
+    try{if(navigator.clipboard)navigator.clipboard.writeText(t);}catch(e){}
+    $("copyCode").textContent="Скопировано";
+    setTimeout(function(){$("copyCode").textContent="Копировать";},1500);
+  };
+
   if(running){$("startStop").innerHTML="⏸ Стоп";$("startStop").className="bigbtn stop";}
   render();renderChat();
+  initSync();
   setInterval(updateLive,1000);
   addEventListener("resize",function(){var c=$("confetti");c.width=innerWidth;c.height=innerHeight;});
 })();
