@@ -743,13 +743,31 @@
   }
   function esc(s){return String(s).replace(/[<>&]/g,function(c){return{"<":"&lt;",">":"&gt;","&":"&amp;"}[c];});}
 
+  /* ---------- WAKE LOCK (keep screen on while a session runs) ---------- */
+  var wakeLock=null;
+  function requestWake(){
+    try{
+      if("wakeLock" in navigator && !wakeLock){
+        navigator.wakeLock.request("screen").then(function(w){
+          wakeLock=w;
+          wakeLock.addEventListener("release",function(){wakeLock=null;});
+        }).catch(function(){});
+      }
+    }catch(e){}
+  }
+  function releaseWake(){ try{ if(wakeLock){wakeLock.release();wakeLock=null;} }catch(e){} }
+  // iOS releases the lock when the app is backgrounded — re-acquire on return.
+  document.addEventListener("visibilitychange",function(){
+    if(document.visibilityState==="visible"&&running)requestWake();
+  });
+
   /* ---------- ACTIONS ---------- */
   function toggle(){
     if(running){
       var hrs=(Date.now()-running.start)/3.6e6;
       if(hrs>0.0005){st.sessions.push({id:Date.now(),start:running.start,hours:hrs,manual:false});addXP(hrs*10);}
-      running=null;
-    }else{running={start:Date.now()};}
+      running=null; releaseWake();
+    }else{running={start:Date.now()}; requestWake();}
     save();render();
   }
   function addXP(n){st.xp+=n;}
@@ -887,7 +905,7 @@
     setTimeout(function(){$("copyCode").textContent="Копировать";},1500);
   };
 
-  if(running){$("startStop").innerHTML="⏸ Стоп";$("startStop").className="bigbtn stop";}
+  if(running){$("startStop").innerHTML="⏸ Стоп";$("startStop").className="bigbtn stop";requestWake();}
   render();renderChat();
   initSync();
   setInterval(updateLive,1000);
