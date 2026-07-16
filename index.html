@@ -510,8 +510,9 @@
       }
     });
   }
-  function mondayISO(d){d=new Date(d);var g=(d.getDay()+6)%7;d.setHours(0,0,0,0);d.setDate(d.getDate()-g);return d.toISOString();}
-  function dayKey(ms){var d=new Date(ms);d.setHours(0,0,0,0);return d.getTime();}
+  var DAY_START=6; // новый день начинается в 06:00 локального времени
+  function mondayISO(d){d=new Date(new Date(d).getTime()-DAY_START*3.6e6);var g=(d.getDay()+6)%7;d.setHours(0,0,0,0);d.setDate(d.getDate()-g);return d.toISOString();}
+  function dayKey(ms){var d=new Date(ms-DAY_START*3.6e6);d.setHours(0,0,0,0);return d.getTime();}
   function todayKey(){return dayKey(Date.now());}
 
   function rollWeek(){
@@ -553,11 +554,11 @@
 
   /* ---------- STREAK ---------- */
   function streak(){
-    var m=allDays(), s=0, d=new Date();d.setHours(0,0,0,0);
+    var m=allDays(), s=0, today=todayKey();
     // if today not yet hit, start from yesterday so streak isn't prematurely 0
-    var startOffset = (m[d.getTime()]||0)>=st.goalDay ? 0 : 1;
+    var startOffset = (m[today]||0)>=st.goalDay ? 0 : 1;
     for(var i=startOffset;i<400;i++){
-      var k=d.getTime()-i*864e5;
+      var k=today-i*864e5;
       if((m[k]||0)>=st.goalDay)s++;else break;
     }
     return s;
@@ -688,9 +689,9 @@
   function renderProgress(){
     var m=allDays();
     var p=st._period||"week";
-    var days=[], now=new Date();now.setHours(0,0,0,0);
+    var days=[], todayK=todayKey();
     var n = p==="week"?7 : p==="month"?30 : 42;
-    for(var i=n-1;i>=0;i--){var k=now.getTime()-i*864e5;days.push({k:k,h:m[k]||0,date:new Date(k)});}
+    for(var i=n-1;i>=0;i--){var k=todayK-i*864e5;days.push({k:k,h:m[k]||0,date:new Date(k)});}
     $("chartTitle").textContent="Часы по дням · "+(p==="week"?"неделя":p==="month"?"месяц":"всё время");
 
     // chart (show up to 14 bars for readability)
