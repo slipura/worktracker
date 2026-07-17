@@ -178,6 +178,11 @@
   .reward.claimed .rtitle{text-decoration:line-through}
   .reward .rdesc{font-size:12px;color:var(--muted)}
   .reward .spacer{margin-left:auto}
+  .reward.swipeable{position:relative;overflow:hidden;padding:0;background:none;border:none}
+  .reward-bg{position:absolute;inset:0;background:linear-gradient(135deg,var(--success),#16a34a);display:flex;align-items:center;padding-left:16px;color:#04210f;font-weight:800;font-size:13.5px;border-radius:13px}
+  .reward-content{position:relative;display:flex;align-items:center;gap:10px;background:var(--surface-2);border:1px solid var(--border);border-radius:13px;padding:12px 14px;touch-action:pan-y;will-change:transform;user-select:none}
+  .claim-btn{font-size:12px;font-weight:800;padding:7px 10px;border-radius:9px;background:linear-gradient(135deg,var(--success),#16a34a);color:#04210f;white-space:nowrap}
+  .swipe-hint{font-size:11.5px;color:var(--muted);margin:-4px 0 10px}
   .chip{font-size:12px;font-weight:700;padding:7px 12px;border-radius:9px;background:var(--surface-3)}
   .chip.claim{background:linear-gradient(135deg,var(--success),#16a34a);color:#04210f}
   .rewards{display:flex;flex-direction:column;gap:10px}
@@ -336,6 +341,7 @@
 
       <div class="card">
         <h2>Мои награды</h2>
+        <p class="swipe-hint">Смахни вправо или нажми «✓ Готово», чтобы отметить выполненной</p>
         <div class="rewards" id="rewards"></div>
         <div class="addrow">
           <input id="newReward" placeholder="новая награда, напр. «Вечер сериалов»">
@@ -598,14 +604,16 @@
     return {lvl:lvl,frac:frac,name:LEVELS[Math.min(lvl-1,LEVELS.length-1)],xp:xp};
   }
 
-  /* ---------- STREAK ---------- */
+  /* ---------- STREAK ----------
+     Огонёк = дни подряд, когда ты вообще пользовался приложением
+     (записал хоть сколько-то времени), а НЕ дни, когда выполнена дневная цель. */
   function streak(){
     var m=allDays(), s=0, today=todayKey();
-    // if today not yet hit, start from yesterday so streak isn't prematurely 0
-    var startOffset = (m[today]||0)>=st.goalDay ? 0 : 1;
+    // if today has no logged time yet, start from yesterday so streak isn't prematurely 0
+    var startOffset = (m[today]||0)>0 ? 0 : 1;
     for(var i=startOffset;i<400;i++){
       var k=today-i*864e5;
-      if((m[k]||0)>=st.goalDay)s++;else break;
+      if((m[k]||0)>0)s++;else break;
     }
     return s;
   }
@@ -724,12 +732,62 @@
       if(r.claimed){
         clm+='<div class="reward claimed"><span class="rtitle">'+esc(r.title)+'</span></div>';
       }else{
-        act+='<div class="reward"><span><span class="rtitle">'+esc(r.title)+'</span></span><span class="spacer"></span><button class="del" data-rid="'+r.id+'">×</button></div>';
+        act+='<div class="reward swipeable" data-rid="'+r.id+'">'+
+               '<div class="reward-bg">✓ Выполнено</div>'+
+               '<div class="reward-content">'+
+                 '<span class="rtitle">'+esc(r.title)+'</span>'+
+                 '<span class="spacer"></span>'+
+                 '<button class="claim-btn" data-rid="'+r.id+'" aria-label="Отметить выполненной">✓ Готово</button>'+
+                 '<button class="del" data-rid="'+r.id+'" aria-label="Удалить">×</button>'+
+               '</div>'+
+             '</div>';
       }
     });
     box.innerHTML=act||'<div class="empty">Добавь награды ниже.</div>';
     cl.innerHTML=clm||'<div class="empty">Пока пусто — выполни цель и забери награду.</div>';
-    box.querySelectorAll(".del").forEach(function(b){b.onclick=function(){st.rewards=st.rewards.filter(function(r){return r.id!=b.dataset.rid;});save();render();};});
+    box.querySelectorAll(".del").forEach(function(b){b.onclick=function(e){e.stopPropagation();st.rewards=st.rewards.filter(function(r){return r.id!=b.dataset.rid;});save();render();};});
+    box.querySelectorAll(".claim-btn").forEach(function(b){b.onclick=function(e){e.stopPropagation();claimReward(b.dataset.rid);};});
+    box.querySelectorAll(".reward.swipeable").forEach(bindRewardSwipe);
+  }
+
+  function claimReward(id){
+    var r=st.rewards.find(function(x){return x.id==id;});
+    if(r){r.claimed=true;save();render();}
+  }
+
+  // Swipe right on a reward row to mark it as done (moves it into "Полученные").
+  function bindRewardSwipe(el){
+    var content=el.querySelector(".reward-content");
+    if(!content)return;
+    var startX=0,curX=0,dragging=false,rid=el.dataset.rid;
+    var THRESH=76,MAX=110;
+    function start(x){startX=x;curX=x;dragging=true;content.style.transition="none";}
+    function move(x){
+      if(!dragging)return;
+      curX=x;
+      var dx=Math.max(0,Math.min(MAX,curX-startX));
+      content.style.transform="translateX("+dx+"px)";
+    }
+    function end(){
+      if(!dragging)return;dragging=false;
+      var dx=curX-startX;
+      content.style.transition="transform .22s ease";
+      if(dx>THRESH){
+        content.style.transform="translateX(115%)";
+        setTimeout(function(){claimReward(rid);},170);
+      }else{
+        content.style.transform="translateX(0)";
+      }
+    }
+    el.addEventListener("touchstart",function(e){start(e.touches[0].clientX);},{passive:true});
+    el.addEventListener("touchmove",function(e){move(e.touches[0].clientX);},{passive:true});
+    el.addEventListener("touchend",end);
+    el.addEventListener("mousedown",function(e){
+      start(e.clientX);
+      function mm(ev){move(ev.clientX);}
+      function mu(){end();document.removeEventListener("mousemove",mm);document.removeEventListener("mouseup",mu);}
+      document.addEventListener("mousemove",mm);document.addEventListener("mouseup",mu);
+    });
   }
 
   function renderProgress(){
