@@ -117,6 +117,23 @@
   .sync-code-row button{background:var(--surface-3);padding:8px 12px;border-radius:9px;font-weight:700;font-size:12.5px;white-space:nowrap}
   .sync-hint{font-size:12px;color:var(--muted);margin-top:8px}
   .sync-btn{width:100%;background:linear-gradient(135deg,var(--accent),var(--accent-2));padding:13px;border-radius:12px;font-weight:800;font-size:14px}
+  .btn-add-time{width:100%;margin-top:14px;background:linear-gradient(135deg,var(--primary),var(--primary-2));color:#1a1204;padding:14px;border-radius:12px;font-weight:800;font-size:14.5px;box-shadow:0 8px 20px rgba(245,158,11,.3)}
+
+  /* ---- Time wheel picker (like iOS timer) ---- */
+  .wheel-sub{color:var(--muted);font-size:13.5px;margin-top:-2px}
+  .wheels{display:flex;justify-content:center;align-items:flex-start;position:relative;margin:14px 0 6px}
+  .wheel-col{display:flex;flex-direction:column;align-items:center}
+  .wheel{position:relative;width:76px;height:180px;overflow-y:scroll;scroll-snap-type:y mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:none;-ms-overflow-style:none}
+  .wheel::-webkit-scrollbar{display:none}
+  .wheel-track{display:flex;flex-direction:column;padding:72px 0}
+  .wheel-item{height:36px;line-height:36px;text-align:center;font-size:23px;font-weight:700;color:var(--muted);scroll-snap-align:center;font-family:'Fira Code',monospace;transition:color .15s,opacity .15s}
+  .wheel-item.sel{color:var(--fg)}
+  .wheel-highlight{position:absolute;top:72px;left:0;right:0;height:36px;border-top:1px solid var(--border);border-bottom:1px solid var(--border);pointer-events:none}
+  .wheel-shade{position:absolute;left:0;right:0;height:60px;pointer-events:none;z-index:2}
+  .wheel-shade.top{top:0;background:linear-gradient(180deg,var(--surface),rgba(20,29,51,0))}
+  .wheel-shade.bottom{bottom:0;background:linear-gradient(0deg,var(--surface),rgba(20,29,51,0))}
+  .wheel-lbl{font-size:11px;color:var(--muted);margin-top:6px}
+  .wheel-sep{font-size:24px;font-weight:800;color:var(--muted);width:20px;height:36px;margin-top:72px;display:flex;align-items:center;justify-content:center}
 
   /* ---- Progress ---- */
   .seg{display:flex;gap:6px;background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:5px}
@@ -264,10 +281,7 @@
         <input id="manDate" type="date" class="mono" aria-label="Дата работы">
         <input id="manTime" type="time" class="mono" aria-label="Время начала (необязательно)">
       </div>
-      <div class="addrow">
-        <input id="manual" class="mono" inputmode="decimal" placeholder="часов, напр. 2.5">
-        <button id="addManual">+ Добавить</button>
-      </div>
+      <button id="openManual" class="btn-add-time">+ Добавить время</button>
     </div>
   </section>
 
@@ -400,6 +414,38 @@
     <div class="actions">
       <button class="ghost" id="modalLater">Позже</button>
       <button class="go" id="modalClaim">Забрать 🎁</button>
+    </div>
+  </div>
+</div>
+
+<!-- manual time picker modal -->
+<div class="modal" id="manualModal">
+  <div class="box">
+    <h3>Добавить время</h3>
+    <p class="wheel-sub">Сколько ты отработал за этот период</p>
+    <div class="wheels">
+      <div class="wheel-col">
+        <div class="wheel" id="wheelH">
+          <div class="wheel-shade top"></div>
+          <div class="wheel-track" id="wheelHTrack"></div>
+          <div class="wheel-shade bottom"></div>
+        </div>
+        <div class="wheel-lbl">часы</div>
+      </div>
+      <div class="wheel-sep">:</div>
+      <div class="wheel-col">
+        <div class="wheel" id="wheelM">
+          <div class="wheel-shade top"></div>
+          <div class="wheel-track" id="wheelMTrack"></div>
+          <div class="wheel-shade bottom"></div>
+        </div>
+        <div class="wheel-lbl">минуты</div>
+      </div>
+      <div class="wheel-highlight"></div>
+    </div>
+    <div class="actions">
+      <button class="ghost" id="manualCancel">Отмена</button>
+      <button class="go" id="manualConfirm">Добавить</button>
     </div>
   </div>
 </div>
@@ -873,16 +919,63 @@
     window.scrollTo({top:0,behavior:"smooth"});
   }
 
+  /* ---------- TIME WHEEL PICKER (iOS-style hour/minute wheels) ---------- */
+  var WHEEL_ITEM_H=36, wheelHIdx=1, wheelMIdx=0;
+  function buildWheel(track,count,fmt){
+    var html="";
+    for(var i=0;i<count;i++)html+='<div class="wheel-item">'+(fmt?fmt(i):i)+'</div>';
+    track.innerHTML=html;
+  }
+  function wheelHighlight(track,idx){
+    var items=track.children;
+    for(var i=0;i<items.length;i++)items[i].classList.toggle("sel",i===idx);
+  }
+  function clampIdx(idx,max){return Math.max(0,Math.min(max,idx));}
+  function bindWheelScroll(container,track,max,onSettle){
+    var t=null;
+    container.addEventListener("scroll",function(){
+      var idx=clampIdx(Math.round(container.scrollTop/WHEEL_ITEM_H),max);
+      wheelHighlight(track,idx);
+      clearTimeout(t);
+      t=setTimeout(function(){
+        var idx2=clampIdx(Math.round(container.scrollTop/WHEEL_ITEM_H),max);
+        container.scrollTop=idx2*WHEEL_ITEM_H;
+        wheelHighlight(track,idx2);
+        onSettle(idx2);
+      },130);
+    },{passive:true});
+  }
+  function initWheels(){
+    buildWheel($("wheelHTrack"),24,function(i){return i;});
+    buildWheel($("wheelMTrack"),60,function(i){return pad(i);});
+    bindWheelScroll($("wheelH"),$("wheelHTrack"),23,function(idx){wheelHIdx=idx;});
+    bindWheelScroll($("wheelM"),$("wheelMTrack"),59,function(idx){wheelMIdx=idx;});
+  }
+  function setWheels(h,m){
+    wheelHIdx=h;wheelMIdx=m;
+    $("wheelH").scrollTop=h*WHEEL_ITEM_H;
+    $("wheelM").scrollTop=m*WHEEL_ITEM_H;
+    wheelHighlight($("wheelHTrack"),h);
+    wheelHighlight($("wheelMTrack"),m);
+  }
+  function openManualModal(){
+    $("manualModal").classList.add("show");
+    requestAnimationFrame(function(){setWheels(1,0);});
+  }
+  function closeManualModal(){$("manualModal").classList.remove("show");}
+
   /* ---------- BIND ---------- */
   $("startStop").onclick=toggle;
-  $("addManual").onclick=function(){
-    var v=parseFloat(($("manual").value||"").replace(",","."));
-    if(isNaN(v)||v<=0){$("manual").focus();return;}
-    if(v>24)v=24;
-    addManualEntry(v,$("manDate").value,$("manTime").value);
-    $("manual").value="";$("manTime").value="";
+  initWheels();
+  $("openManual").onclick=openManualModal;
+  $("manualCancel").onclick=closeManualModal;
+  $("manualConfirm").onclick=function(){
+    var hrs=wheelHIdx+wheelMIdx/60;
+    if(hrs<=0){closeManualModal();return;}
+    addManualEntry(hrs,$("manDate").value,$("manTime").value);
+    $("manTime").value="";
+    closeManualModal();
   };
-  $("manual").addEventListener("keydown",function(e){if(e.key==="Enter")$("addManual").click();});
   // default the manual date to today, block future dates
   $("manDate").value=isoDateInput(new Date());
   $("manDate").max=isoDateInput(new Date());
