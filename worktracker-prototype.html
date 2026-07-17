@@ -411,6 +411,7 @@
   "use strict";
   var STORE="worktracker.proto.v1";
   var RING=653;
+  var DAY_START=6; // новый день начинается в 06:00 локального времени, не в полночь
   var LEVELS=["Новичок","Разгоняюсь","В потоке","Дисциплина","Машина","Хищник","Легенда"];
 
   function defState(){
@@ -510,7 +511,6 @@
       }
     });
   }
-  var DAY_START=6; // новый день начинается в 06:00 локального времени
   function mondayISO(d){d=new Date(new Date(d).getTime()-DAY_START*3.6e6);var g=(d.getDay()+6)%7;d.setHours(0,0,0,0);d.setDate(d.getDate()-g);return d.toISOString();}
   function dayKey(ms){var d=new Date(ms-DAY_START*3.6e6);d.setHours(0,0,0,0);return d.getTime();}
   function todayKey(){return dayKey(Date.now());}
