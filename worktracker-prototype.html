@@ -622,7 +622,7 @@
   function badgeDefs(){
     var m=allDays(), tk=todayKey();
     var weekTotal=0,wk=new Date(st.weekStart);for(var i=0;i<7;i++)weekTotal+=(m[wk.getTime()+i*864e5]||0);
-    var earlyBird=st.sessions.some(function(s){return new Date(s.start).getHours()<7;});
+    var earlyBird=st.sessions.some(function(s){return new Date(s.start).getHours()<11;});
     var best=0;for(var k in m)best=Math.max(best,m[k]);
     var totalHours=0;for(var j in m)totalHours+=m[j];
     return [
@@ -630,7 +630,7 @@
       {id:"day",ic:"✓",t:"Норма дня",d:"10 ч за день",on:(m[tk]||0)>=st.goalDay||best>=st.goalDay},
       {id:"streak3",ic:"🔥",t:"Разогрев",d:"3 дня подряд",on:streak()>=3},
       {id:"streak6",ic:"🔥",t:"Неделя силы",d:"6 дней подряд",on:streak()>=6},
-      {id:"early",ic:"🌅",t:"Ранняя пташка",d:"старт до 7:00",on:earlyBird},
+      {id:"early",ic:"🌅",t:"Ранняя пташка",d:"старт до 11:00",on:earlyBird},
       {id:"week60",ic:"🏆",t:"60 за неделю",d:"60 ч в неделю",on:weekTotal>=60},
       {id:"marathon",ic:"⚡",t:"Марафон",d:"12 ч за день",on:best>=12},
       {id:"century",ic:"💯",t:"Сотка",d:"100 ч всего",on:totalHours>=100}
