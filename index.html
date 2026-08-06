@@ -80,9 +80,14 @@
   .rc .big small{font-size:.42em;color:var(--muted);font-weight:600}
   .rc .sub{font-size:13px;color:var(--muted);margin-top:2px}
   .rc .pct{font-size:13px;color:var(--primary);font-weight:700;margin-top:8px}
+  .btnrow{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;width:100%}
   .bigbtn{width:min(280px,80vw);padding:18px;border-radius:16px;font-size:18px;font-weight:800;letter-spacing:.3px;
     background:linear-gradient(135deg,var(--primary),var(--primary-2));color:#1a1204;box-shadow:0 10px 26px rgba(245,158,11,.4)}
   .bigbtn.stop{background:linear-gradient(135deg,#ef4444,#dc2626);color:#fff;box-shadow:0 10px 26px rgba(239,68,68,.4);animation:live 1.8s infinite}
+  .btnrow .bigbtn{width:min(170px,52vw)}
+  .bigbtn-sec{width:min(170px,52vw);padding:18px;border-radius:16px;font-size:15.5px;font-weight:800;letter-spacing:.2px;
+    background:var(--surface-2);border:1px solid var(--border);color:var(--fg)}
+  .bigbtn-sec.resume{background:linear-gradient(135deg,var(--primary),var(--primary-2));color:#1a1204;border-color:transparent}
   @keyframes live{0%,100%{box-shadow:0 10px 26px rgba(239,68,68,.4)}50%{box-shadow:0 10px 34px rgba(239,68,68,.65)}}
 
   .today{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;width:100%;margin-top:22px}
@@ -121,6 +126,10 @@
 
   /* ---- Time wheel picker (like iOS timer) ---- */
   .wheel-sub{color:var(--muted);font-size:13.5px;margin-top:-2px}
+  .mode-toggle{display:flex;gap:6px;margin:12px 0 10px;background:var(--surface-2);border-radius:12px;padding:4px}
+  .mode-btn{flex:1;padding:9px 6px;border-radius:9px;font-size:13px;font-weight:700;color:var(--muted);background:transparent}
+  .mode-btn.active[data-mode="add"]{background:linear-gradient(135deg,var(--primary),var(--primary-2));color:#1a1204}
+  .mode-btn.active[data-mode="sub"]{background:linear-gradient(135deg,#ef4444,#dc2626);color:#fff}
   .wheels{display:flex;justify-content:center;align-items:flex-start;position:relative;margin:14px 0 6px}
   .wheel-col{display:flex;flex-direction:column;align-items:center}
   .wheel{position:relative;width:76px;height:180px;overflow-y:scroll;scroll-snap-type:y mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:none;-ms-overflow-style:none}
@@ -264,7 +273,10 @@
           <div class="pct" id="dayPct">0% от цели</div>
         </div>
       </div>
-      <button class="bigbtn" id="startStop">▶ Старт</button>
+      <div class="btnrow">
+        <button class="bigbtn" id="startStop">▶ Старт</button>
+        <button class="bigbtn-sec" id="pauseResume" style="display:none">⏸ Пауза</button>
+      </div>
 
       <div class="today">
         <div class="tstat"><div class="n mono" id="tHours">0.0</div><div class="l">часов сегодня</div></div>
@@ -427,7 +439,11 @@
 <!-- manual time picker modal -->
 <div class="modal" id="manualModal">
   <div class="box">
-    <h3>Добавить время</h3>
+    <h3 id="manualTitle">Добавить время</h3>
+    <div class="mode-toggle" id="modeToggle">
+      <button type="button" class="mode-btn active" data-mode="add">+ Добавить</button>
+      <button type="button" class="mode-btn" data-mode="sub">− Списать</button>
+    </div>
     <p class="wheel-sub">Сколько ты отработал за этот период</p>
     <div class="wheels">
       <div class="wheel-col">
@@ -480,6 +496,13 @@
     };
   }
   var st=load(), running=st.running||null;
+  // old saves only had {start}; upgrade to the pause/resume shape.
+  function normalizeRunning(){
+    if(running&&running.origStart===undefined){
+      running={origStart:running.start,start:running.start,accum:0,paused:false};
+    }
+  }
+  normalizeRunning();
 
   // ---- cloud sync state ----
   var SYNCK="worktracker.sync.code", syncCode=null, bootUpdatedAt=st.updatedAt||0, pushTimer=null;
@@ -541,7 +564,7 @@
       if(err){setSyncStatus("offline");return;}
       if(!remote||typeof remote!=="object"){setSyncStatus("notfound");return;}
       syncCode=code; try{localStorage.setItem(SYNCK,syncCode);}catch(e){}
-      st=withDefaults(remote); running=st.running||null;
+      st=withDefaults(remote); running=st.running||null; normalizeRunning();
       bootUpdatedAt=st.updatedAt||0;
       try{localStorage.setItem(STORE,JSON.stringify(st));}catch(e){}
       render(); renderChat(); showSyncOn(); setSyncStatus("loaded");
@@ -555,7 +578,7 @@
     pullCloud(syncCode,function(err,remote){
       if(err){setSyncStatus("offline");return;}
       if(remote&&typeof remote==="object"&&(remote.updatedAt||0)>bootUpdatedAt){
-        st=withDefaults(remote); running=st.running||null; bootUpdatedAt=st.updatedAt||0;
+        st=withDefaults(remote); running=st.running||null; normalizeRunning(); bootUpdatedAt=st.updatedAt||0;
         try{localStorage.setItem(STORE,JSON.stringify(st));}catch(e){}
         render(); renderChat(); setSyncStatus("loaded");
       }else{
@@ -577,7 +600,7 @@
       save();
     }
   }
-  function liveHours(){return running?(Date.now()-running.start)/3.6e6:0;}
+  function liveHours(){return running?(running.accum+(running.paused?0:(Date.now()-running.start)/3.6e6)):0;}
 
   function weekMap(){
     var map={}, wk=new Date(st.weekStart);
@@ -646,9 +669,10 @@
 
     // clock
     if(running){
-      var ms=Date.now()-running.start,s=Math.floor(ms/1000),h=Math.floor(s/3600),mn=Math.floor((s%3600)/60),sc=s%60;
+      var elapsedHrs=running.accum+(running.paused?0:(Date.now()-running.start)/3.6e6);
+      var s=Math.floor(elapsedHrs*3600),h=Math.floor(s/3600),mn=Math.floor((s%3600)/60),sc=s%60;
       $("clock").innerHTML=h+"<small>ч</small>"+pad(mn)+"<small>м</small>"+pad(sc)+"<small>с</small>";
-      $("clockSub").textContent="идёт сессия…";
+      $("clockSub").textContent=running.paused?"на паузе":"идёт сессия…";
     }else{
       $("clock").innerHTML=fmtH(todayH);
       $("clockSub").textContent=todayH>0?"сегодня отработано":"нажми старт";
@@ -657,8 +681,13 @@
     $("ring").setAttribute("stroke-dashoffset",RING*(1-dfrac));
     $("dayPct").textContent=Math.round(dfrac*100)+"% от цели";
 
-    $("startStop").innerHTML=running?"⏸ Стоп":"▶ Старт";
+    $("startStop").innerHTML=running?"■ Стоп":"▶ Старт";
     $("startStop").className="bigbtn"+(running?" stop":"");
+    $("pauseResume").style.display=running?"inline-flex":"none";
+    if(running){
+      $("pauseResume").innerHTML=running.paused?"▶ Продолжить":"⏸ Пауза";
+      $("pauseResume").className="bigbtn-sec"+(running.paused?" resume":"");
+    }
 
     // today stats
     $("tHours").textContent=todayH.toFixed(1);
@@ -698,9 +727,10 @@
   // Lightweight per-second update while a session runs — updates ONLY the timer
   // and today's numbers, avoiding a full re-render (which caused lag/flicker).
   function updateLive(){
-    if(!running)return;
+    if(!running||running.paused)return;
     var m=allDays(), tk=todayKey(), todayH=m[tk]||0;
-    var s=Math.floor((Date.now()-running.start)/1000),h=Math.floor(s/3600),mn=Math.floor((s%3600)/60),sc=s%60;
+    var elapsedHrs=running.accum+(Date.now()-running.start)/3.6e6;
+    var s=Math.floor(elapsedHrs*3600),h=Math.floor(s/3600),mn=Math.floor((s%3600)/60),sc=s%60;
     $("clock").innerHTML=h+"<small>ч</small>"+pad(mn)+"<small>м</small>"+pad(sc)+"<small>с</small>";
     $("clockSub").textContent="идёт сессия…";
     var dfrac=Math.min(todayH/st.goalDay,1);
@@ -717,10 +747,12 @@
     var box=$("sessList");
     if(list.length===0&&!running){box.innerHTML='<div class="empty">Пока нет сессий. Нажми «Старт».</div>';return;}
     var html="";
-    if(running)html+='<div class="sess" style="border-color:rgba(34,197,94,.4)"><span class="t">сейчас</span><span class="live-tag">идёт…</span></div>';
+    if(running)html+='<div class="sess" style="border-color:rgba(34,197,94,.4)"><span class="t">сейчас</span><span class="live-tag">'+(running.paused?"на паузе":"идёт…")+'</span></div>';
     list.slice().reverse().forEach(function(s){
       var d=new Date(s.start),lab=s.manual?"вручную":pad(d.getHours())+":"+pad(d.getMinutes());
-      html+='<div class="sess"><span class="t">'+lab+'</span><span style="display:flex;gap:10px;align-items:center"><span class="d mono">'+s.hours.toFixed(2)+' ч</span><button class="del" data-id="'+s.id+'" aria-label="Удалить">×</button></span></div>';
+      var neg=s.hours<0;
+      var amt=(neg?"−":"")+Math.abs(s.hours).toFixed(2)+' ч';
+      html+='<div class="sess"><span class="t">'+lab+'</span><span style="display:flex;gap:10px;align-items:center"><span class="d mono"'+(neg?' style="color:#ef4444"':'')+'>'+amt+'</span><button class="del" data-id="'+s.id+'" aria-label="Удалить">×</button></span></div>';
     });
     box.innerHTML=html;
     box.querySelectorAll(".del").forEach(function(b){b.onclick=function(){st.sessions=st.sessions.filter(function(s){return s.id!=b.dataset.id;});save();render();};});
@@ -863,21 +895,32 @@
   function releaseWake(){ try{ if(wakeLock){wakeLock.release();wakeLock=null;} }catch(e){} }
   // iOS releases the lock when the app is backgrounded — re-acquire on return.
   document.addEventListener("visibilitychange",function(){
-    if(document.visibilityState==="visible"&&running)requestWake();
+    if(document.visibilityState==="visible"&&running&&!running.paused)requestWake();
   });
 
   /* ---------- ACTIONS ---------- */
   function toggle(){
     if(running){
-      var hrs=(Date.now()-running.start)/3.6e6;
-      if(hrs>0.0005){st.sessions.push({id:Date.now(),start:running.start,hours:hrs,manual:false});addXP(hrs*10);}
+      var hrs=running.accum+(running.paused?0:(Date.now()-running.start)/3.6e6);
+      if(hrs>0.0005){st.sessions.push({id:Date.now(),start:running.origStart,hours:hrs,manual:false});addXP(hrs*10);}
       running=null; releaseWake();
-    }else{running={start:Date.now()}; requestWake();}
+    }else{running={origStart:Date.now(),start:Date.now(),accum:0,paused:false}; requestWake();}
+    save();render();
+  }
+  function pauseResume(){
+    if(!running)return;
+    if(running.paused){
+      running.start=Date.now(); running.paused=false; requestWake();
+    }else{
+      running.accum+=(Date.now()-running.start)/3.6e6; running.start=null; running.paused=true; releaseWake();
+    }
     save();render();
   }
   function addXP(n){st.xp+=n;}
   function isoDateInput(d){d=new Date(d);return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());}
-  // add manual hours for a chosen day (and optional start time). Handles past weeks via history.
+  // add (or, with a negative value, subtract) manual hours for a chosen day
+  // and optional start time. Handles past weeks via history. A subtraction
+  // is clamped so a day's total never goes below zero.
   function addManualEntry(hours,dateStr,timeStr){
     var base;
     if(dateStr){var p=dateStr.split("-");base=new Date(+p[0],(+p[1])-1,+p[2]);}
@@ -888,11 +931,18 @@
     var startMs=base.getTime();
     if(startMs>Date.now())startMs=Date.now(); // no future entries
     var dk=dayKey(startMs);
+
+    if(hours<0){
+      var existing=allDays()[dk]||0;
+      if(-hours>existing)hours=-existing;
+      if(hours>=-0.0005)return; // nothing left to subtract for that day
+    }
+
     var wkStart=new Date(st.weekStart).getTime();
     if(dk>=wkStart&&dk<wkStart+7*864e5){
       st.sessions.push({id:Date.now(),start:startMs,hours:hours,manual:!hasTime});
     }else{
-      st.history[dk]=(st.history[dk]||0)+hours; // archived / previous weeks
+      st.history[dk]=Math.max(0,(st.history[dk]||0)+hours); // archived / previous weeks
     }
     addXP(hours*10);save();render();
   }
@@ -1016,7 +1066,15 @@
     wheelHighlight($("wheelHTrack"),h);
     wheelHighlight($("wheelMTrack"),m);
   }
+  var manualMode="add";
+  function setManualMode(mode){
+    manualMode=mode;
+    document.querySelectorAll(".mode-btn").forEach(function(b){b.classList.toggle("active",b.dataset.mode===mode);});
+    $("manualTitle").textContent=mode==="sub"?"Списать время":"Добавить время";
+    $("manualConfirm").textContent=mode==="sub"?"Списать":"Добавить";
+  }
   function openManualModal(){
+    setManualMode("add");
     $("manualModal").classList.add("show");
     requestAnimationFrame(function(){setWheels(1,0);});
   }
@@ -1024,12 +1082,15 @@
 
   /* ---------- BIND ---------- */
   $("startStop").onclick=toggle;
+  $("pauseResume").onclick=pauseResume;
   initWheels();
   $("openManual").onclick=openManualModal;
   $("manualCancel").onclick=closeManualModal;
+  document.querySelectorAll(".mode-btn").forEach(function(b){b.onclick=function(){setManualMode(b.dataset.mode);};});
   $("manualConfirm").onclick=function(){
     var hrs=wheelHIdx+wheelMIdx/60;
     if(hrs<=0){closeManualModal();return;}
+    if(manualMode==="sub")hrs=-hrs;
     addManualEntry(hrs,$("manDate").value,$("manTime").value);
     $("manTime").value="";
     closeManualModal();
@@ -1057,7 +1118,7 @@
     setTimeout(function(){$("copyCode").textContent="Копировать";},1500);
   };
 
-  if(running){$("startStop").innerHTML="⏸ Стоп";$("startStop").className="bigbtn stop";requestWake();}
+  if(running&&!running.paused)requestWake();
   render();renderChat();
   initSync();
   setInterval(updateLive,1000);
